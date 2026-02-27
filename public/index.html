@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PowerBud</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <h1>PowerBud</h1>
+            <div id="date-display"></div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="app">
+
+        <!-- DASHBOARD VIEW -->
+        <section id="view-dashboard" class="view active">
+
+            <!-- Summary Card -->
+            <div class="card summary-card">
+                <h2>Daily Summary</h2>
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>Calories</span>
+                        <span id="cal-text">0 / 2000</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="cal-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="macros-grid">
+                    <div class="macro-item">
+                        <span class="macro-label">Protein</span>
+                        <div class="macro-circle protein" id="prot-circle">0g</div>
+                        <span class="macro-goal" id="prot-goal">/ 150g</span>
+                    </div>
+                    <div class="macro-item">
+                        <span class="macro-label">Carbs</span>
+                        <div class="macro-circle carbs" id="carb-circle">0g</div>
+                        <span class="macro-goal" id="carb-goal">/ 200g</span>
+                    </div>
+                    <div class="macro-item">
+                        <span class="macro-label">Fat</span>
+                        <div class="macro-circle fat" id="fat-circle">0g</div>
+                        <span class="macro-goal" id="fat-goal">/ 65g</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Logs -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Today's Meals</h2>
+                    <button class="btn-icon" onclick="navTo('view-log-food')"><i class="fas fa-plus"></i></button>
+                </div>
+                <ul id="meal-list" class="list-group">
+                    <!-- Items injected here -->
+                    <li class="list-item empty-state">No meals logged today.</li>
+                </ul>
+            </div>
+
+            <!-- Recent Workouts -->
+             <div class="card">
+                <div class="card-header">
+                    <h2>Recent Workouts</h2>
+                    <button class="btn-icon" onclick="navTo('view-workout')"><i class="fas fa-dumbbell"></i></button>
+                </div>
+                <ul id="recent-workout-list" class="list-group">
+                     <!-- Items injected here -->
+                </ul>
+            </div>
+
+        </section>
+
+        <!-- LOG FOOD VIEW -->
+        <section id="view-log-food" class="view">
+            <div class="card">
+                <button class="btn-back" onclick="navTo('view-dashboard')"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Log Food</h2>
+                <input type="text" id="food-search" placeholder="Search food (e.g. Chicken)..." onkeyup="searchFood()">
+                <div id="food-results" class="list-group"></div>
+
+                <div id="selected-food-panel" style="display:none; margin-top: 20px;">
+                    <h3 id="selected-food-name"></h3>
+                    <div class="input-group">
+                        <label>Quantity (grams/servings)</label>
+                        <input type="number" id="food-quantity" value="100">
+                    </div>
+                    <button class="btn-primary" onclick="addFoodLog()">Add Meal</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- WORKOUT VIEW -->
+        <section id="view-workout" class="view">
+            <div class="card">
+                 <button class="btn-back" onclick="navTo('view-dashboard')"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Log Workout</h2>
+
+                <div class="input-group">
+                    <label>Exercise Name</label>
+                    <input type="text" id="workout-exercise" placeholder="e.g. Bench Press">
+                </div>
+
+                <div class="row">
+                    <div class="input-group">
+                        <label>Weight (kg)</label>
+                        <input type="number" id="workout-weight" placeholder="0">
+                    </div>
+                    <div class="input-group">
+                        <label>Reps</label>
+                        <input type="number" id="workout-reps" placeholder="0">
+                    </div>
+                </div>
+
+                <button class="btn-primary" onclick="addWorkoutLog()">Log Set</button>
+            </div>
+        </section>
+
+        <!-- PROGRESS VIEW -->
+        <section id="view-progress" class="view">
+            <div class="card">
+                <h2>Progress</h2>
+                <div class="input-group">
+                    <label>Select Exercise</label>
+                    <select id="progress-exercise-select" onchange="loadProgressChart()">
+                        <option value="">Select...</option>
+                        <!-- Options populated dynamically -->
+                    </select>
+                </div>
+                <div class="chart-container">
+                    <canvas id="progressChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+         <!-- GOALS VIEW -->
+         <section id="view-goals" class="view">
+            <div class="card">
+                <h2>Daily Goals</h2>
+                <div class="input-group">
+                    <label>Calories</label>
+                    <input type="number" id="goal-cals">
+                </div>
+                <div class="input-group">
+                    <label>Protein (g)</label>
+                    <input type="number" id="goal-prot">
+                </div>
+                <div class="input-group">
+                    <label>Carbs (g)</label>
+                    <input type="number" id="goal-carbs">
+                </div>
+                <div class="input-group">
+                    <label>Fat (g)</label>
+                    <input type="number" id="goal-fat">
+                </div>
+                <button class="btn-primary" onclick="saveGoals()">Update Goals</button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <a href="#" class="nav-item active" onclick="navTo('view-dashboard'); return false;">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </a>
+        <a href="#" class="nav-item" onclick="navTo('view-log-food'); return false;">
+            <i class="fas fa-utensils"></i>
+            <span>Food</span>
+        </a>
+        <a href="#" class="nav-item" onclick="navTo('view-workout'); return false;">
+            <i class="fas fa-dumbbell"></i>
+            <span>Lift</span>
+        </a>
+        <a href="#" class="nav-item" onclick="navTo('view-progress'); return false;">
+            <i class="fas fa-chart-line"></i>
+            <span>Stats</span>
+        </a>
+        <a href="#" class="nav-item" onclick="navTo('view-goals'); return false;">
+            <i class="fas fa-cog"></i>
+            <span>Goals</span>
+        </a>
+    </nav>
+
+    <script src="app.js"></script>
+</body>
+</html>
