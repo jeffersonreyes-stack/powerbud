@@ -1,32 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PowerBud</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-cyan"></div>
+    <div class="bg-glow bg-glow-magenta"></div>
 
     <!-- Header -->
     <header>
         <div class="header-content">
-            <h1>PowerBud</h1>
+            <h1><i class="fas fa-bolt"></i> PowerBud</h1>
             <div id="date-display"></div>
         </div>
+        <p class="header-subtitle">Track your fuel. Hack your performance.</p>
     </header>
 
     <!-- Main Content Area -->
     <main id="app">
-
         <!-- DASHBOARD VIEW -->
         <section id="view-dashboard" class="view active">
 
             <!-- Summary Card -->
             <div class="card summary-card">
-                <h2>Daily Summary</h2>
+                <h2><i class="fas fa-wave-square"></i> Daily Summary</h2>
                 <div class="progress-container">
                     <div class="progress-label">
                         <span>Calories</span>
@@ -59,19 +65,44 @@
             <!-- Recent Logs -->
             <div class="card">
                 <div class="card-header">
-                    <h2>Today's Meals</h2>
+                    <h2><i class="fas fa-bowl-food"></i> Today's Meals</h2>
                     <button class="btn-icon" onclick="navTo('view-log-food')"><i class="fas fa-plus"></i></button>
                 </div>
                 <ul id="meal-list" class="list-group">
-                    <!-- Items injected here -->
                     <li class="list-item empty-state">No meals logged today.</li>
                 </ul>
+
+                <div id="edit-log-panel" style="display:none; margin-top: 16px;">
+                    <h3 id="edit-log-food-name"></h3>
+                    <div class="input-group">
+                        <label>Food</label>
+                        <select id="edit-log-food-select"></select>
+                    </div>
+                    <div class="row">
+                        <div class="input-group">
+                            <label>Amount</label>
+                            <input type="number" id="edit-log-quantity" min="0" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>Unit</label>
+                            <select id="edit-log-unit">
+                                <option value="g">Peso (g)</option>
+                                <option value="unit">Unidad</option>
+                                <option value="serving">Serving</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <button class="btn-primary" onclick="saveEditedLog()">Save Changes</button>
+                        <button class="btn-back" style="margin: 0;" onclick="cancelEditLog()">Cancel</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Recent Workouts -->
              <div class="card">
                 <div class="card-header">
-                    <h2>Recent Workouts</h2>
+                    <h2><i class="fas fa-dumbbell"></i> Recent Workouts</h2>
                     <button class="btn-icon" onclick="navTo('view-workout')"><i class="fas fa-dumbbell"></i></button>
                 </div>
                 <ul id="recent-workout-list" class="list-group">
@@ -85,18 +116,70 @@
         <section id="view-log-food" class="view">
             <div class="card">
                 <button class="btn-back" onclick="navTo('view-dashboard')"><i class="fas fa-arrow-left"></i> Back</button>
-                <h2>Log Food</h2>
-                <input type="text" id="food-search" placeholder="Search food (e.g. Chicken)..." onkeyup="searchFood()">
+                <h2><i class="fas fa-utensils"></i> Registrar Comida</h2>
+                <input type="text" id="food-search" placeholder="Buscar alimento (ej: pollo)...">
                 <div id="food-results" class="list-group"></div>
+                <button class="btn-secondary" onclick="navTo('view-foods')">
+                    <i class="fas fa-plus"></i> Agregar alimento nuevo
+                </button>
 
                 <div id="selected-food-panel" style="display:none; margin-top: 20px;">
                     <h3 id="selected-food-name"></h3>
-                    <div class="input-group">
-                        <label>Quantity (grams/servings)</label>
-                        <input type="number" id="food-quantity" value="100">
+                    <div class="row">
+                        <div class="input-group">
+                            <label>Cantidad</label>
+                            <input type="number" id="food-quantity" value="100" min="0" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>Unidad</label>
+                            <select id="food-unit">
+                                <option value="g">Peso (g)</option>
+                                <option value="unit">Unidad</option>
+                                <option value="serving">Serving</option>
+                            </select>
+                        </div>
                     </div>
-                    <button class="btn-primary" onclick="addFoodLog()">Add Meal</button>
+                    <button class="btn-primary" onclick="addFoodLog()">Agregar Comida</button>
                 </div>
+            </div>
+        </section>
+
+        <!-- FOOD MANAGEMENT VIEW -->
+        <section id="view-foods" class="view">
+            <div class="card">
+                <button class="btn-back" onclick="navTo('view-log-food')"><i class="fas fa-arrow-left"></i> Volver</button>
+                <h2><i class="fas fa-database"></i> Base de Alimentos</h2>
+                <p class="muted-text">Crea nuevos alimentos y edita sus macros.</p>
+
+                <h3>Nuevo Alimento</h3>
+                <div class="input-group">
+                    <label>Nombre</label>
+                    <input type="text" id="new-food-name" placeholder="Ej: Tilapia (100g)">
+                </div>
+                <div class="row row-4">
+                    <div class="input-group">
+                        <label>Calorias</label>
+                        <input type="number" id="new-food-calories" min="0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Proteina</label>
+                        <input type="number" id="new-food-protein" min="0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Carbs</label>
+                        <input type="number" id="new-food-carbs" min="0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Grasa</label>
+                        <input type="number" id="new-food-fat" min="0" step="0.1">
+                    </div>
+                </div>
+                <button class="btn-primary" onclick="createFood()">Crear alimento</button>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-table-list"></i> Tabla de Macros</h2>
+                <div id="foods-management-list" class="foods-management-list"></div>
             </div>
         </section>
 
@@ -104,7 +187,7 @@
         <section id="view-workout" class="view">
             <div class="card">
                  <button class="btn-back" onclick="navTo('view-dashboard')"><i class="fas fa-arrow-left"></i> Back</button>
-                <h2>Log Workout</h2>
+                <h2><i class="fas fa-person-running"></i> Log Workout</h2>
 
                 <div class="input-group">
                     <label>Exercise Name</label>
@@ -129,7 +212,7 @@
         <!-- PROGRESS VIEW -->
         <section id="view-progress" class="view">
             <div class="card">
-                <h2>Progress</h2>
+                <h2><i class="fas fa-chart-line"></i> Progress</h2>
                 <div class="input-group">
                     <label>Select Exercise</label>
                     <select id="progress-exercise-select" onchange="loadProgressChart()">
@@ -143,10 +226,82 @@
             </div>
         </section>
 
+        <!-- BODY METRICS VIEW -->
+        <section id="view-body" class="view">
+            <div class="card">
+                <button class="btn-back" onclick="navTo('view-dashboard')"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2><i class="fas fa-ruler-combined"></i> Cuerpo &amp; Medidas</h2>
+                <p class="muted-text">Registra tu peso, altura y medidas corporales.</p>
+
+                <div class="row">
+                    <div class="input-group">
+                        <label>Fecha</label>
+                        <input type="date" id="body-date">
+                    </div>
+                    <div class="input-group">
+                        <label>Peso (kg)</label>
+                        <input type="number" id="body-weight" placeholder="70.5" min="0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Altura (cm)</label>
+                        <input type="number" id="body-height" placeholder="175" min="0" step="0.5">
+                    </div>
+                </div>
+                <div class="row row-4">
+                    <div class="input-group">
+                        <label>Cintura (cm)</label>
+                        <input type="number" id="body-waist" placeholder="80" min="0" step="0.5">
+                    </div>
+                    <div class="input-group">
+                        <label>Pecho (cm)</label>
+                        <input type="number" id="body-chest" placeholder="95" min="0" step="0.5">
+                    </div>
+                    <div class="input-group">
+                        <label>Caderas (cm)</label>
+                        <input type="number" id="body-hips" placeholder="98" min="0" step="0.5">
+                    </div>
+                    <div class="input-group">
+                        <label>Notas</label>
+                        <input type="text" id="body-notes" placeholder="Opcional">
+                    </div>
+                </div>
+                <button class="btn-primary" onclick="saveBodyMetric()"><i class="fas fa-save"></i> Guardar Medida</button>
+            </div>
+
+            <div class="card" id="body-bmi-card" style="display:none;">
+                <h2><i class="fas fa-weight-scale"></i> Ultimo Registro</h2>
+                <div class="bmi-grid">
+                    <div class="bmi-item">
+                        <span class="bmi-label">Peso</span>
+                        <span class="bmi-value" id="bmi-weight">—</span>
+                    </div>
+                    <div class="bmi-item">
+                        <span class="bmi-label">Altura</span>
+                        <span class="bmi-value" id="bmi-height">—</span>
+                    </div>
+                    <div class="bmi-item">
+                        <span class="bmi-label">IMC</span>
+                        <span class="bmi-value" id="bmi-value">—</span>
+                    </div>
+                    <div class="bmi-item">
+                        <span class="bmi-label">Cintura</span>
+                        <span class="bmi-value" id="bmi-waist">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-clock-rotate-left"></i> Historial</h2>
+                <div id="body-history-list" class="body-history-list">
+                    <p class="muted-text">Sin registros aun.</p>
+                </div>
+            </div>
+        </section>
+
          <!-- GOALS VIEW -->
          <section id="view-goals" class="view">
             <div class="card">
-                <h2>Daily Goals</h2>
+                <h2><i class="fas fa-crosshairs"></i> Daily Goals</h2>
                 <div class="input-group">
                     <label>Calories</label>
                     <input type="number" id="goal-cals">
@@ -190,6 +345,14 @@
         <a href="#" class="nav-item" onclick="navTo('view-goals'); return false;">
             <i class="fas fa-cog"></i>
             <span>Goals</span>
+        </a>
+        <a href="#" class="nav-item" onclick="navTo('view-foods'); return false;">
+            <i class="fas fa-apple-whole"></i>
+            <span>Alimentos</span>
+        </a>
+        <a href="#" class="nav-item" onclick="navTo('view-body'); return false;">
+            <i class="fas fa-ruler-combined"></i>
+            <span>Cuerpo</span>
         </a>
     </nav>
 

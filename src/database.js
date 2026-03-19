@@ -30,8 +30,21 @@ function initDb() {
       date TEXT NOT NULL,
       food_id INTEGER,
       quantity REAL NOT NULL, -- in grams or servings
+      unit TEXT DEFAULT 'g', -- g | unit | serving
       FOREIGN KEY (food_id) REFERENCES foods(id)
     )`);
+
+    // Migration for existing databases created before unit support.
+    db.all(`PRAGMA table_info(logs)`, (err, columns) => {
+      if (err || !Array.isArray(columns)) {
+        return;
+      }
+
+      const hasUnit = columns.some(col => col.name === 'unit');
+      if (!hasUnit) {
+        db.run(`ALTER TABLE logs ADD COLUMN unit TEXT DEFAULT 'g'`);
+      }
+    });
 
     // Workouts table
     db.run(`CREATE TABLE IF NOT EXISTS workouts (
@@ -49,6 +62,18 @@ function initDb() {
       protein INTEGER NOT NULL,
       carbs INTEGER NOT NULL,
       fat INTEGER NOT NULL
+    )`);
+
+    // Body metrics table (weight, height, measurements)
+    db.run(`CREATE TABLE IF NOT EXISTS body_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      weight_kg REAL,
+      height_cm REAL,
+      waist_cm REAL,
+      chest_cm REAL,
+      hips_cm REAL,
+      notes TEXT
     )`);
 
     // Insert default goals if not exists
