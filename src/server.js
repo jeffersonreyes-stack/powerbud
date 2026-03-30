@@ -1,7 +1,9 @@
+require('dotenv').config(); // <-- CARGAR VARIABLES DE ENTORNO PRIMERO
 const express = require('express');
 const bodyParser = require('body-parser');
 const pgDb = require('./pg-database'); // <--- NUEVA BASE DE DATOS
 const { authController, authenticateToken, requireRole } = require('./auth'); // <--- AUTENTICACIÓN
+const aiService = require('./ai'); // <--- IA DE GEMINI
 const path = require('path');
 
 // Mantenemos vivo el backend antiguo para que las rutas no se rompan
@@ -32,6 +34,35 @@ app.post('/api/auth/login', authController.login);
 
 // Rutas protegidas de perfil (Cualquier usuario logueado)
 app.get('/api/profile', authenticateToken, authController.getProfile);
+
+// -- SERVICIOS DE INTELIGENCIA ARTIFICIAL (GEMINI) --
+// Solo los entrenadores tienen el "poder" de usar la IA para generar rutinas para sus clientes
+app.post('/api/ai/generate-workout', authenticateToken, requireRole('trainer'), async (req, res) => {
+  try {
+    const { clientProfile } = req.body;
+
+    // Validamos que el entrenador nos mande los datos de un cliente
+    if (!clientProfile) {
+      return res.status(400).json({ error: 'Faltan los datos del cliente (clientProfile) para generar la rutina.' });
+    }
+
+    // Llamamos a la magia de Gemini
+    console.log('Solicitando rutina a la IA de Gemini para:', clientProfile.goal || 'Entrenamiento general');
+    const workoutPlan = await aiService.generateWorkoutPlan(clientProfile);
+
+    // Devolvemos el JSON estructurado con la rutina para que el frontend la dibuje
+    res.json({
+      success: true,
+      message: 'Rutina generada por IA exitosamente. Recuerda revisarla antes de asignarla a tu cliente.',
+      data: workoutPlan
+    });
+
+  } catch (error) {
+    console.error('Error en el endpoint de IA:', error);
+    res.status(500).json({ error: 'Hubo un problema al comunicarse con el servicio de Inteligencia Artificial.' });
+  }
+});
+
 
 // -- EJEMPLO RUTA DE ENTRENADOR --
 // Solo entrenadores pueden listar todos sus clientes
