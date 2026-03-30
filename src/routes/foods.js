@@ -33,8 +33,8 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
-// 2. Create Food (Solo Entrenadores o Admins pueden agregar alimentos a la base de datos)
-router.post('/', authenticateToken, requireRole('trainer'), async (req, res) => {
+// 2. Create Food (Cualquier usuario autenticado puede crear sus alimentos si no los encuentra)
+router.post('/', authenticateToken, async (req, res) => {
     try {
         const { name, calories, protein, carbs, fat } = req.body;
         const normalizedName = typeof name === 'string' ? name.trim() : '';
@@ -66,8 +66,8 @@ router.post('/', authenticateToken, requireRole('trainer'), async (req, res) => 
     }
 });
 
-// 3. Update Food (Solo Entrenadores que lo crearon o Admins)
-router.put('/:id', authenticateToken, requireRole('trainer'), async (req, res) => {
+// 3. Update Food (Cualquier usuario puede editar el alimento que él mismo creó)
+router.put('/:id', authenticateToken, async (req, res) => {
     try {
         const foodId = Number(req.params.id);
         const { name, calories, protein, carbs, fat } = req.body;

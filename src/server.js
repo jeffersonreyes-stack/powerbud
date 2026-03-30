@@ -11,6 +11,7 @@ const foodsRoutes = require('./routes/foods');
 const logsRoutes = require('./routes/logs');
 const metricsRoutes = require('./routes/metrics');
 const workoutsRoutes = require('./routes/workouts');
+const relationsRoutes = require('./routes/relations');
 
 // Mantenemos vivo el backend antiguo para que las rutas no se rompan
 const db = require('./database');
@@ -42,30 +43,66 @@ app.post('/api/auth/login', authController.login);
 app.get('/api/profile', authenticateToken, authController.getProfile);
 
 // -- SERVICIOS DE INTELIGENCIA ARTIFICIAL (GEMINI) --
-// Solo los entrenadores tienen el "poder" de usar la IA para generar rutinas para sus clientes
-app.post('/api/ai/generate-workout', authenticateToken, requireRole('trainer'), async (req, res) => {
+// ¡EL ENTRENADOR VIRTUAL!
+// Ahora cualquier usuario (cliente o entrenador humano) puede pedirle a Gemini una rutina automática.
+app.post('/api/ai/generate-workout', authenticateToken, async (req, res) => {
   try {
-    const { clientProfile } = req.body;
+    const userId = req.user.id;
+    let clientProfile = {};
 
-    // Validamos que el entrenador nos mande los datos de un cliente
-    if (!clientProfile) {
-      return res.status(400).json({ error: 'Faltan los datos del cliente (clientProfile) para generar la rutina.' });
+    // 1. Si es un CLIENTE NORMAL: Él no tiene que llenar nada extra.
+    // Vamos a la base de datos y le armamos el perfil automáticamente leyendo sus métricas y metas.
+    if (req.user.role === 'client') {
+
+      // Consultamos su peso, edad y metas más recientes de PostgreSQL:
+      // A. Su meta principal (para saber si quiere perder peso o hipertrofia)
+      const goalRes = await pgDb.query(`SELECT calories FROM goals WHERE user_id = $1 LIMIT 1`, [userId]);
+      const clientGoal = goalRes.rows.length > 0 ? (goalRes.rows[0].calories > 2500 ? "Volumen/Hipertrofia" : "Pérdida de grasa") : "Mejora de la condición física";
+
+      // B. Su peso y altura más recientes
+      const metricsRes = await pgDb.query(`
+        SELECT weight_kg, height_cm, notes
+        FROM body_metrics
+        WHERE user_id = $1 ORDER BY date DESC LIMIT 1
+      `, [userId]);
+
+      const metrics = metricsRes.rows.length > 0 ? metricsRes.rows[0] : {};
+
+      // Armamos el perfil "silencioso" para dárselo a Gemini
+      clientProfile = {
+        age: 'No especificada', // Podríamos agregar edad a la tabla users después
+        weight_kg: metrics.weight_kg || 'No especificado',
+        height_cm: metrics.height_cm || 'No especificada',
+        goal: clientGoal,
+        days_per_week: 3, // Días predeterminados para un cliente normal
+        experience_level: 'Principiante',
+        injuries: metrics.notes || 'Ninguna reportada' // Si en "notes" de body_metrics puso "me duele la rodilla", la IA lo lee
+      };
+
+    }
+    // 2. Si es un ENTRENADOR: Él sí manda el perfil personalizado de un cliente suyo por el body (req.body)
+    else if (req.user.role === 'trainer') {
+      if (!req.body.clientProfile) {
+        return res.status(400).json({ error: 'Como entrenador, debes enviar el perfil detallado del cliente (clientProfile) en tu solicitud.' });
+      }
+      clientProfile = req.body.clientProfile;
     }
 
-    // Llamamos a la magia de Gemini
-    console.log('Solicitando rutina a la IA de Gemini para:', clientProfile.goal || 'Entrenamiento general');
+    // Llamamos a la magia de Gemini (Entrenador Virtual) usando los datos recolectados
+    console.log('Generando rutina mágica con Gemini. Objetivo:', clientProfile.goal);
     const workoutPlan = await aiService.generateWorkoutPlan(clientProfile);
 
-    // Devolvemos el JSON estructurado con la rutina para que el frontend la dibuje
+    // Devolvemos el JSON estructurado
     res.json({
       success: true,
-      message: 'Rutina generada por IA exitosamente. Recuerda revisarla antes de asignarla a tu cliente.',
-      data: workoutPlan
+      message: 'El Entrenador Virtual ha generado una rutina para ti basándose en tus datos actuales.',
+      data: workoutPlan,
+      profileUsed: clientProfile // Para que la app sepa qué datos usó la IA
     });
 
   } catch (error) {
-    console.error('Error en el endpoint de IA:', error);
-    res.status(500).json({ error: 'Hubo un problema al comunicarse con el servicio de Inteligencia Artificial.' });
+    console.error('Error en el Entrenador Virtual (IA):', error);
+    res.status(500).json({ error: 'Hubo un problema al contactar a la Inteligencia Artificial. Inténtalo más tarde.' });
   }
 });
 
@@ -76,6 +113,7 @@ app.use('/api/v2/foods', foodsRoutes);
 app.use('/api/v2/logs', logsRoutes);
 app.use('/api/v2/progress', metricsRoutes);
 app.use('/api/v2/workouts', workoutsRoutes);
+app.use('/api/v2/relations', relationsRoutes);
 
 // -- EJEMPLO RUTA DE ENTRENADOR --
 // Solo entrenadores pueden listar todos sus clientes
