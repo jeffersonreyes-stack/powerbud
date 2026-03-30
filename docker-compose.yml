@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  # El servidor principal (Backend Node.js)
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL} # Supabase PostgreSQL URL
+      - JWT_SECRET=${JWT_SECRET} # Llave para seguridad de tokens
+      - GEMINI_API_KEY=${GEMINI_API_KEY} # Inteligencia Artificial
+    restart: unless-stopped # Se reinicia si se cae
+    # Opcional si usas dependencias en red (ej., base de datos en otro contenedor)
+    # networks:
+    #  - powerbud-network
+
+# networks:
+#   powerbud-network:
+#     driver: bridge

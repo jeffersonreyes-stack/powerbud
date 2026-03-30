@@ -1,13 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// IMPORTANTE: Cuando ejecutes Expo Go en tu celular físico, localhost (127.0.0.1) NO FUNCIONA
-// porque localhost sería tu celular, no tu computadora donde está el cerebro de Node.js
-//
-// Para que tu celular hable con tu computadora (el servidor), debes poner aquí
-// la Dirección IP LOCAL de tu computadora en la red Wi-Fi (ej. 192.168.1.50)
-// o usar un servicio de túnel como ngrok si estás en redes diferentes.
-const API_URL = 'http://192.168.1.100:3000/api'; // <--- CAMBIAR POR TU IP LOCAL
+// USANDO VARIABLES DE ENTORNO EN LA NUBE (OBLIGATORIO PARA PRODUCCIÓN)
+// El dominio donde vive el servidor Node.js (ej. Render, AWS, Heroku)
+// Revisa mobile-app/.env.example para configurarlo si estás compilando tu APK/IPA
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.tu-servidor-cloud.com/api';
 
 const api = axios.create({
   baseURL: API_URL,

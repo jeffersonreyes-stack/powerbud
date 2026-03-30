@@ -1,0 +1,9 @@
+node_modules/
+npm-debug.log
+.git/
+.env
+.DS_Store
+mobile-app/
+Dockerfile
+docker-compose.yml
+powerbud.db # (La vieja BD no va a producción)
