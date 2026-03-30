@@ -6,6 +6,12 @@ const { authController, authenticateToken, requireRole } = require('./auth'); //
 const aiService = require('./ai'); // <--- IA DE GEMINI
 const path = require('path');
 
+// RUTAS v2 (MIGRACIÓN A POSTGRESQL)
+const foodsRoutes = require('./routes/foods');
+const logsRoutes = require('./routes/logs');
+const metricsRoutes = require('./routes/metrics');
+const workoutsRoutes = require('./routes/workouts');
+
 // Mantenemos vivo el backend antiguo para que las rutas no se rompan
 const db = require('./database');
 require('./seed');
@@ -63,6 +69,13 @@ app.post('/api/ai/generate-workout', authenticateToken, requireRole('trainer'), 
   }
 });
 
+
+// -- RUTAS v2 (PostgreSQL) --
+// Registramos las rutas migradas bajo el prefijo /api/v2/
+app.use('/api/v2/foods', foodsRoutes);
+app.use('/api/v2/logs', logsRoutes);
+app.use('/api/v2/progress', metricsRoutes);
+app.use('/api/v2/workouts', workoutsRoutes);
 
 // -- EJEMPLO RUTA DE ENTRENADOR --
 // Solo entrenadores pueden listar todos sus clientes
