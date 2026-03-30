@@ -6,6 +6,15 @@ const { authController, authenticateToken, requireRole } = require('./auth'); //
 const aiService = require('./ai'); // <--- IA DE GEMINI
 const path = require('path');
 
+// RUTAS v2 (MIGRACIÓN A POSTGRESQL)
+const foodsRoutes = require('./routes/foods');
+const logsRoutes = require('./routes/logs');
+const metricsRoutes = require('./routes/metrics');
+const workoutsRoutes = require('./routes/workouts');
+const relationsRoutes = require('./routes/relations');
+const reviewsRoutes = require('./routes/reviews');
+const uploadRoutes = require('./routes/upload');
+
 // Mantenemos vivo el backend antiguo para que las rutas no se rompan
 const db = require('./database');
 require('./seed');
@@ -36,33 +45,126 @@ app.post('/api/auth/login', authController.login);
 app.get('/api/profile', authenticateToken, authController.getProfile);
 
 // -- SERVICIOS DE INTELIGENCIA ARTIFICIAL (GEMINI) --
-// Solo los entrenadores tienen el "poder" de usar la IA para generar rutinas para sus clientes
-app.post('/api/ai/generate-workout', authenticateToken, requireRole('trainer'), async (req, res) => {
+// ¡EL ENTRENADOR VIRTUAL!
+// Ahora cualquier usuario (cliente o entrenador humano) puede pedirle a Gemini una rutina automática.
+app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
   try {
-    const { clientProfile } = req.body;
+    const userId = req.user.id;
+    let clientProfile = {};
 
-    // Validamos que el entrenador nos mande los datos de un cliente
-    if (!clientProfile) {
-      return res.status(400).json({ error: 'Faltan los datos del cliente (clientProfile) para generar la rutina.' });
+    // 1. Si es un CLIENTE NORMAL: Él no tiene que llenar nada extra.
+    // Vamos a la base de datos y le armamos el perfil automáticamente leyendo sus métricas y metas.
+    if (req.user.role === 'client') {
+
+      // Consultamos su peso, edad y metas más recientes de PostgreSQL:
+      // A. Su meta principal (para saber si quiere perder peso o hipertrofia)
+      const goalRes = await pgDb.query(`SELECT calories FROM goals WHERE user_id = $1 LIMIT 1`, [userId]);
+      const clientGoal = goalRes.rows.length > 0 ? (goalRes.rows[0].calories > 2500 ? "Volumen/Hipertrofia" : "Pérdida de grasa") : "Mejora de la condición física";
+
+      // B. Su peso y altura más recientes
+      const metricsRes = await pgDb.query(`
+        SELECT weight_kg, height_cm, notes
+        FROM body_metrics
+        WHERE user_id = $1 ORDER BY date DESC LIMIT 1
+      `, [userId]);
+
+      const metrics = metricsRes.rows.length > 0 ? metricsRes.rows[0] : {};
+
+      // Armamos el perfil "silencioso" para dárselo a Gemini
+      clientProfile = {
+        age: 'No especificada', // Podríamos agregar edad a la tabla users después
+        weight_kg: metrics.weight_kg || 'No especificado',
+        height_cm: metrics.height_cm || 'No especificada',
+        goal: clientGoal,
+        days_per_week: 3, // Días predeterminados para un cliente normal
+        experience_level: 'Principiante',
+        injuries: metrics.notes || 'Ninguna reportada' // Si en "notes" de body_metrics puso "me duele la rodilla", la IA lo lee
+      };
+
+    }
+    // 2. Si es un ENTRENADOR: Él sí manda el perfil personalizado de un cliente suyo por el body (req.body)
+    let targetClientIdForTrainer = null;
+    if (req.user.role === 'trainer') {
+
+      // BLOQUEO: Entrenadores No Verificados no pueden usar la IA
+      const statusRes = await pgDb.query(`SELECT verification_status FROM users WHERE id = $1`, [userId]);
+      if (statusRes.rows[0].verification_status !== 'verified') {
+        return res.status(403).json({ error: 'Tu cuenta de entrenador aún no ha sido verificada. Sube tu certificado para usar el Asistente Virtual.' });
+      }
+
+      if (!req.body.clientProfile || !req.body.client_id) {
+        return res.status(400).json({ error: 'Como entrenador, debes enviar el perfil del cliente (clientProfile) y su ID (client_id).' });
+      }
+      clientProfile = req.body.clientProfile;
+      targetClientIdForTrainer = req.body.client_id;
     }
 
-    // Llamamos a la magia de Gemini
-    console.log('Solicitando rutina a la IA de Gemini para:', clientProfile.goal || 'Entrenamiento general');
+    // Llamamos a la magia de Gemini (Entrenador Virtual) usando los datos recolectados
+    console.log('Generando rutina mágica con Gemini. Objetivo:', clientProfile.goal);
     const workoutPlan = await aiService.generateWorkoutPlan(clientProfile);
 
-    // Devolvemos el JSON estructurado con la rutina para que el frontend la dibuje
+    // GUARDADO AUTOMÁTICO EN BASE DE DATOS
+    // El Entrenador Virtual itera sobre los días y ejercicios para inyectarlos en la tabla 'workouts'
+    const today = new Date();
+
+    for (const day of workoutPlan.workout_plan.days) {
+      // Por cada día del plan, sumamos un día a la fecha actual para crear el calendario
+      const workoutDate = new Date(today);
+      workoutDate.setDate(today.getDate() + (day.day_number - 1));
+      const sqlDate = workoutDate.toISOString().split('T')[0];
+
+      for (const exercise of day.exercises) {
+        // Asumimos un peso predeterminado (ej. 10kg) para que el cliente lo modifique después
+        const defaultWeight = 10;
+
+        // Interpretar los reps (Si Gemini devuelve "8-12", agarramos el 10 como promedio para la BD)
+        let repsToSave = 10;
+        if (typeof exercise.reps === 'number') {
+           repsToSave = exercise.reps;
+        } else if (typeof exercise.reps === 'string') {
+           const match = exercise.reps.match(/\d+/);
+           if (match) repsToSave = parseInt(match[0], 10);
+        }
+
+        const exerciseName = `${day.focus}: ${exercise.name}`;
+
+        // Determinar a quién se le asigna la rutina en la base de datos
+        // Si el rol es cliente, usa su propio ID (userId) y el trainer_id queda NULL (Entrenador Virtual)
+        // Si el rol es entrenador, asigna la rutina al cliente objetivo y se firma con el userId del entrenador
+        const assignToClientId = req.user.role === 'trainer' ? targetClientIdForTrainer : userId;
+        const assignedByTrainerId = req.user.role === 'trainer' ? userId : null;
+
+        await pgDb.query(`
+          INSERT INTO workouts (client_id, trainer_id, date, exercise, weight, reps, modified_by_client)
+          VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+        `, [assignToClientId, assignedByTrainerId, sqlDate, exerciseName, defaultWeight, repsToSave]);
+      }
+    }
+
+    // Devolvemos el JSON estructurado
     res.json({
       success: true,
-      message: 'Rutina generada por IA exitosamente. Recuerda revisarla antes de asignarla a tu cliente.',
-      data: workoutPlan
+      message: 'El Entrenador Virtual ha generado tu rutina y la ha guardado en tu historial.',
+      data: workoutPlan,
+      profileUsed: clientProfile
     });
 
   } catch (error) {
-    console.error('Error en el endpoint de IA:', error);
-    res.status(500).json({ error: 'Hubo un problema al comunicarse con el servicio de Inteligencia Artificial.' });
+    console.error('Error en el Entrenador Virtual (IA):', error);
+    res.status(500).json({ error: 'Hubo un problema al contactar a la Inteligencia Artificial. Inténtalo más tarde.' });
   }
 });
 
+
+// -- RUTAS v2 (PostgreSQL) --
+// Registramos las rutas migradas bajo el prefijo /api/v2/
+app.use('/api/v2/foods', foodsRoutes);
+app.use('/api/v2/logs', logsRoutes);
+app.use('/api/v2/progress', metricsRoutes);
+app.use('/api/v2/workouts', workoutsRoutes);
+app.use('/api/v2/relations', relationsRoutes);
+app.use('/api/v2/reviews', reviewsRoutes);
+app.use('/api/v2/upload', uploadRoutes);
 
 // -- EJEMPLO RUTA DE ENTRENADOR --
 // Solo entrenadores pueden listar todos sus clientes

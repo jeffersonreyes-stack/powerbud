@@ -28,6 +28,8 @@ async function initDb() {
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL CHECK (role IN ('trainer', 'client', 'admin')),
+        verification_status VARCHAR(50) DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'pending', 'verified')), -- Para el certificado de educacion
+        certificate_url VARCHAR(500), -- Donde se guardará la foto de su diploma en Supabase
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -78,7 +80,8 @@ async function initDb() {
         date DATE NOT NULL,
         exercise VARCHAR(255) NOT NULL,
         weight REAL NOT NULL,
-        reps INTEGER NOT NULL
+        reps INTEGER NOT NULL,
+        modified_by_client BOOLEAN DEFAULT FALSE -- Flag para saber si el cliente alteró la recomendación del entrenador
       )
     `);
 
@@ -94,7 +97,7 @@ async function initDb() {
       )
     `);
 
-    // Métricas Corporales (Progreso del cliente)
+    // Métricas Corporales (Progreso del cliente con foto en Supabase Storage)
     await client.query(`
       CREATE TABLE IF NOT EXISTS body_metrics (
         id SERIAL PRIMARY KEY,
@@ -105,7 +108,21 @@ async function initDb() {
         waist_cm REAL,
         chest_cm REAL,
         hips_cm REAL,
-        notes TEXT
+        notes TEXT,
+        photo_url VARCHAR(500) -- URL pública del bucket de Supabase
+      )
+    `);
+
+    // Tabla de Calificaciones y Reseñas de Entrenadores (Reviews)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS trainer_reviews (
+        id SERIAL PRIMARY KEY,
+        trainer_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        client_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), -- Calificación de 1 a 5 estrellas
+        comment TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(trainer_id, client_id) -- Un cliente solo puede dejar una reseña por entrenador (puede actualizarla)
       )
     `);
 
