@@ -1,13 +1,18 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const db = require('./database');
+const pgDb = require('./pg-database'); // <--- NUEVA BASE DE DATOS
+const { authController, authenticateToken, requireRole } = require('./auth'); // <--- AUTENTICACIÓN
 const path = require('path');
 
-// Ensure database is seeded
+// Mantenemos vivo el backend antiguo para que las rutas no se rompan
+const db = require('./database');
 require('./seed');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Inicializa PostgreSQL al arrancar el servidor
+pgDb.initDb().catch(console.error);
 
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../public')));
@@ -20,6 +25,29 @@ function parseLocaleNumber(value) {
 }
 
 // --- API ROUTES ---
+
+// -- RUTAS DE AUTENTICACIÓN Y USUARIOS (NUEVAS) --
+app.post('/api/auth/register', authController.register);
+app.post('/api/auth/login', authController.login);
+
+// Rutas protegidas de perfil (Cualquier usuario logueado)
+app.get('/api/profile', authenticateToken, authController.getProfile);
+
+// -- EJEMPLO RUTA DE ENTRENADOR --
+// Solo entrenadores pueden listar todos sus clientes
+app.get('/api/trainer/clients', authenticateToken, requireRole('trainer'), async (req, res) => {
+  try {
+    const clients = await pgDb.query(`
+      SELECT u.id, u.email, tc.status, tc.assigned_at
+      FROM users u
+      JOIN trainer_clients tc ON u.id = tc.client_id
+      WHERE tc.trainer_id = $1
+    `, [req.user.id]);
+    res.json(clients.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener clientes' });
+  }
+});
 
 // 1. Search Foods
 app.get('/api/foods', (req, res) => {
