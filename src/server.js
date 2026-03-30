@@ -1,13 +1,20 @@
+require('dotenv').config(); // <-- CARGAR VARIABLES DE ENTORNO PRIMERO
 const express = require('express');
 const bodyParser = require('body-parser');
-const db = require('./database');
+const pgDb = require('./pg-database'); // <--- NUEVA BASE DE DATOS
+const { authController, authenticateToken, requireRole } = require('./auth'); // <--- AUTENTICACIÓN
+const aiService = require('./ai'); // <--- IA DE GEMINI
 const path = require('path');
 
-// Ensure database is seeded
+// Mantenemos vivo el backend antiguo para que las rutas no se rompan
+const db = require('./database');
 require('./seed');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Inicializa PostgreSQL al arrancar el servidor
+pgDb.initDb().catch(console.error);
 
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../public')));
@@ -20,6 +27,58 @@ function parseLocaleNumber(value) {
 }
 
 // --- API ROUTES ---
+
+// -- RUTAS DE AUTENTICACIÓN Y USUARIOS (NUEVAS) --
+app.post('/api/auth/register', authController.register);
+app.post('/api/auth/login', authController.login);
+
+// Rutas protegidas de perfil (Cualquier usuario logueado)
+app.get('/api/profile', authenticateToken, authController.getProfile);
+
+// -- SERVICIOS DE INTELIGENCIA ARTIFICIAL (GEMINI) --
+// Solo los entrenadores tienen el "poder" de usar la IA para generar rutinas para sus clientes
+app.post('/api/ai/generate-workout', authenticateToken, requireRole('trainer'), async (req, res) => {
+  try {
+    const { clientProfile } = req.body;
+
+    // Validamos que el entrenador nos mande los datos de un cliente
+    if (!clientProfile) {
+      return res.status(400).json({ error: 'Faltan los datos del cliente (clientProfile) para generar la rutina.' });
+    }
+
+    // Llamamos a la magia de Gemini
+    console.log('Solicitando rutina a la IA de Gemini para:', clientProfile.goal || 'Entrenamiento general');
+    const workoutPlan = await aiService.generateWorkoutPlan(clientProfile);
+
+    // Devolvemos el JSON estructurado con la rutina para que el frontend la dibuje
+    res.json({
+      success: true,
+      message: 'Rutina generada por IA exitosamente. Recuerda revisarla antes de asignarla a tu cliente.',
+      data: workoutPlan
+    });
+
+  } catch (error) {
+    console.error('Error en el endpoint de IA:', error);
+    res.status(500).json({ error: 'Hubo un problema al comunicarse con el servicio de Inteligencia Artificial.' });
+  }
+});
+
+
+// -- EJEMPLO RUTA DE ENTRENADOR --
+// Solo entrenadores pueden listar todos sus clientes
+app.get('/api/trainer/clients', authenticateToken, requireRole('trainer'), async (req, res) => {
+  try {
+    const clients = await pgDb.query(`
+      SELECT u.id, u.email, tc.status, tc.assigned_at
+      FROM users u
+      JOIN trainer_clients tc ON u.id = tc.client_id
+      WHERE tc.trainer_id = $1
+    `, [req.user.id]);
+    res.json(clients.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener clientes' });
+  }
+});
 
 // 1. Search Foods
 app.get('/api/foods', (req, res) => {
