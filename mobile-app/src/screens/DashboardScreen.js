@@ -7,17 +7,41 @@ export default function DashboardScreen({ setIsAuthenticated }) {
   const [user, setUser] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [aiWorkout, setAiWorkout] = useState(null);
+  const [invitations, setInvitations] = useState([]);
 
   // Al cargar, recuperar información del usuario de la bóveda
   useEffect(() => {
     const fetchUser = async () => {
       const userInfo = await AsyncStorage.getItem('userInfo');
       if (userInfo) {
-        setUser(JSON.parse(userInfo));
+        const parsedUser = JSON.parse(userInfo);
+        setUser(parsedUser);
+        if (parsedUser.role === 'client') {
+          fetchInvitations();
+        }
       }
     };
     fetchUser();
   }, []);
+
+  const fetchInvitations = async () => {
+    try {
+      const response = await api.get('/v2/relations/invitations');
+      setInvitations(response.data);
+    } catch (error) {
+      console.error('Error cargando invitaciones', error);
+    }
+  };
+
+  const handleInvitation = async (trainerId, action) => {
+    try {
+      await api.post(`/v2/relations/invitations/${trainerId}/${action}`);
+      Alert.alert('Éxito', action === 'accept' ? 'Has aceptado a este entrenador' : 'Invitación rechazada');
+      fetchInvitations(); // Recargar lista
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo procesar la invitación');
+    }
+  };
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('userToken');
@@ -32,7 +56,7 @@ export default function DashboardScreen({ setIsAuthenticated }) {
     try {
       // El backend de Powerbud ya sabe quiénes somos por el JWT (nuestro ID)
       // Él irá a PostgreSQL a buscar nuestro peso, metas y se lo mandará a Gemini.
-      const response = await api.post('/ai/generate-workout');
+      const response = await api.post('/v2/ai/generate-workout');
 
       // Obtenemos el JSON estructurado devuelto por la Inteligencia Artificial
       setAiWorkout(response.data.data);
@@ -58,25 +82,54 @@ export default function DashboardScreen({ setIsAuthenticated }) {
 
       <Text style={styles.emailText}>{user?.email}</Text>
 
-      {/* Tarjeta de Inteligencia Artificial (Entrenador Virtual) */}
-      <View style={styles.aiCard}>
-        <Text style={styles.cardTitle}>🤖 Entrenador Virtual</Text>
-        <Text style={styles.cardDesc}>
-          Dejaremos que la Inteligencia Artificial analice tus últimos registros de peso y metas para crearte una rutina perfecta.
-        </Text>
+      {/* Notificaciones de Invitaciones (Solo visible para clientes si tienen pendientes) */}
+      {invitations.length > 0 && user?.role === 'client' && (
+        <View style={styles.invitationCard}>
+          <Text style={styles.invitationTitle}>🔔 ¡Tienes un Entrenador tocando la puerta!</Text>
+          {invitations.map((inv) => (
+            <View key={inv.trainer_id} style={styles.invitationRow}>
+              <Text style={styles.invitationEmail}>{inv.trainer_email}</Text>
+              <View style={styles.invitationActions}>
+                <TouchableOpacity style={[styles.invBtn, {backgroundColor: '#2ecc71'}]} onPress={() => handleInvitation(inv.trainer_id, 'accept')}>
+                  <Text style={styles.invBtnText}>Aceptar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.invBtn, {backgroundColor: '#e74c3c'}]} onPress={() => handleInvitation(inv.trainer_id, 'reject')}>
+                  <Text style={styles.invBtnText}>Rechazar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
 
-        <TouchableOpacity
-          style={styles.magicButton}
-          onPress={generateMagicWorkout}
-          disabled={loadingAI}
-        >
-          {loadingAI ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.magicButtonText}>✨ Generar Rutina Mágica</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Tarjeta de Inteligencia Artificial (Entrenador Virtual - Solo para clientes en el dashboard) */}
+      {user?.role === 'client' && (
+        <View style={styles.aiCard}>
+          <Text style={styles.cardTitle}>🤖 Entrenador Virtual</Text>
+          <Text style={styles.cardDesc}>
+            Dejaremos que la Inteligencia Artificial analice tus últimos registros de peso y metas para crearte una rutina perfecta.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.magicButton}
+            onPress={generateMagicWorkout}
+            disabled={loadingAI}
+          >
+            {loadingAI ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.magicButtonText}>✨ Generar Rutina Mágica</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {user?.role === 'trainer' && (
+        <View style={styles.trainerWelcomeCard}>
+           <Text style={styles.cardTitle}>Panel de Control</Text>
+           <Text style={styles.cardDesc}>Bienvenido a tu panel de entrenador. Ve a la pestaña "Mis Clientes" para gestionar y asignar rutinas manuales o usar la IA para tus atletas.</Text>
+        </View>
+      )}
 
       {/* Mostrar el resultado del JSON estructurado de la IA de forma bonita */}
       {aiWorkout && (
@@ -137,6 +190,14 @@ const styles = StyleSheet.create({
     color: '#888',
     marginBottom: 30,
   },
+  invitationCard: { backgroundColor: '#fff3cd', padding: 15, borderRadius: 10, marginBottom: 20, borderWidth: 1, borderColor: '#ffeeba' },
+  invitationTitle: { fontSize: 16, fontWeight: 'bold', color: '#856404', marginBottom: 10 },
+  invitationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
+  invitationEmail: { fontSize: 14, color: '#333', flex: 1 },
+  invitationActions: { flexDirection: 'row' },
+  invBtn: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 5, marginLeft: 10 },
+  invBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  trainerWelcomeCard: { backgroundColor: '#fff', borderRadius: 15, padding: 20, borderLeftWidth: 4, borderLeftColor: '#34495e', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
   aiCard: {
     backgroundColor: '#fff',
     borderRadius: 15,

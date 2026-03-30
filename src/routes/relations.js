@@ -11,11 +11,35 @@ router.use(authenticateToken);
 // FLUJO DEL ENTRENADOR (El que invita)
 // ==========================================
 
-// 1. Enviar una invitación a un cliente por email
+// 0. Ver todos mis clientes (Entrenador)
+router.get('/trainer/clients', requireRole('trainer'), async (req, res) => {
+    try {
+        const sql = `
+            SELECT tc.client_id, u.email, tc.status, tc.assigned_at
+            FROM trainer_clients tc
+            JOIN users u ON tc.client_id = u.id
+            WHERE tc.trainer_id = $1
+            ORDER BY tc.assigned_at DESC
+        `;
+        const result = await pgDb.query(sql, [req.user.id]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching clients:', err);
+        res.status(500).json({ error: 'Error al obtener clientes' });
+    }
+});
+
+// 1. Enviar una invitación a un cliente por email (Solo Entrenadores VERIFICADOS)
 router.post('/invite', requireRole('trainer'), async (req, res) => {
     try {
         const { clientEmail } = req.body;
         const trainerId = req.user.id;
+
+        // Comprobar estado de verificación del entrenador
+        const statusRes = await pgDb.query(`SELECT verification_status FROM users WHERE id = $1`, [trainerId]);
+        if (statusRes.rows[0].verification_status !== 'verified') {
+            return res.status(403).json({ error: 'Para invitar clientes debes subir tu certificado de educación y ser aprobado por el administrador.' });
+        }
 
         if (!clientEmail) {
             return res.status(400).json({ error: 'Debes proporcionar el email del cliente a invitar' });
@@ -93,6 +117,28 @@ router.get('/invitations', async (req, res) => {
     } catch (err) {
         console.error('Error fetching invitations:', err);
         res.status(500).json({ error: 'Error al obtener tus invitaciones' });
+    }
+});
+
+// 2.5 Ver entrenadores actuales (Activos o Inactivos) para poder calificarlos
+router.get('/my-trainers', async (req, res) => {
+    try {
+        const clientId = req.user.id;
+
+        const sql = `
+            SELECT t.id as trainer_id, t.email as trainer_email, tc.status, tc.assigned_at
+            FROM trainer_clients tc
+            JOIN users t ON tc.trainer_id = t.id
+            WHERE tc.client_id = $1 AND tc.status != 'pending'
+            ORDER BY tc.assigned_at DESC
+        `;
+
+        const result = await pgDb.query(sql, [clientId]);
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error('Error fetching trainers:', err);
+        res.status(500).json({ error: 'Error al obtener tus entrenadores' });
     }
 });
 

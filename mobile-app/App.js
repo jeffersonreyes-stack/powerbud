@@ -13,12 +13,14 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import DietScreen from './src/screens/DietScreen';
 import WorkoutScreen from './src/screens/WorkoutScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
+import ReviewScreen from './src/screens/ReviewScreen';
+import TrainerClientsScreen from './src/screens/TrainerClientsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // --- El Menú de Pestañas Inferiores ---
-function MainTabNavigator({ setIsAuthenticated }) {
+function MainTabNavigator({ setIsAuthenticated, userRole }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -34,6 +36,10 @@ function MainTabNavigator({ setIsAuthenticated }) {
             iconName = focused ? 'barbell' : 'barbell-outline';
           } else if (route.name === 'Progreso') {
             iconName = focused ? 'body' : 'body-outline';
+          } else if (route.name === 'Reseñas') {
+            iconName = focused ? 'star' : 'star-outline';
+          } else if (route.name === 'Mis Clientes') {
+            iconName = focused ? 'people' : 'people-outline';
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -49,13 +55,23 @@ function MainTabNavigator({ setIsAuthenticated }) {
       </Tab.Screen>
       <Tab.Screen name="Dieta" component={DietScreen} />
       <Tab.Screen name="Rutina" component={WorkoutScreen} />
-      <Tab.Screen name="Progreso" component={ProgressScreen} />
+
+      {/* Diferenciar Menú según Rol: Clientes ven Progreso/Reseñas, Entrenadores ven sus Clientes */}
+      {userRole === 'client' ? (
+        <>
+          <Tab.Screen name="Progreso" component={ProgressScreen} />
+          <Tab.Screen name="Reseñas" component={ReviewScreen} />
+        </>
+      ) : (
+        <Tab.Screen name="Mis Clientes" component={TrainerClientsScreen} />
+      )}
     </Tab.Navigator>
   );
 }
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState('client');
   const [loading, setLoading] = useState(true);
 
   // Al abrir la app en el celular, revisamos rápido la "Bóveda" (AsyncStorage)
@@ -64,8 +80,10 @@ export default function App() {
     const checkToken = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
-        if (token) {
+        const userInfo = await AsyncStorage.getItem('userInfo');
+        if (token && userInfo) {
           setIsAuthenticated(true);
+          setUserRole(JSON.parse(userInfo).role);
         }
       } catch (e) {
         console.error('Error leyendo token local', e);
@@ -91,12 +109,17 @@ export default function App() {
       {!isAuthenticated ? (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login">
-            {props => <LoginScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
+            {props => <LoginScreen {...props} setIsAuthenticated={(val) => {
+               setIsAuthenticated(val);
+               AsyncStorage.getItem('userInfo').then(ui => {
+                  if(ui) setUserRole(JSON.parse(ui).role);
+               });
+            }} />}
           </Stack.Screen>
           <Stack.Screen name="Register" component={RegisterScreen} />
         </Stack.Navigator>
       ) : (
-        <MainTabNavigator setIsAuthenticated={setIsAuthenticated} />
+        <MainTabNavigator setIsAuthenticated={setIsAuthenticated} userRole={userRole} />
       )}
     </NavigationContainer>
   );

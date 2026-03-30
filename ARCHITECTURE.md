@@ -10,22 +10,23 @@ La arquitectura sigue un modelo cliente-servidor moderno, basado en microservici
 *   **Frontend (Aplicaciones Móviles):** Desarrolladas en tecnologías nativas o multiplataforma (como React Native o Flutter) para garantizar presencia tanto en la App Store (iOS) como en la Google Play Store (Android).
 *   **Backend (API REST):** Construido en **Node.js con Express** (basado en la estructura actual del proyecto). Este servidor actuará como el "cerebro" central, gestionando la lógica de negocio, la autenticación y las conexiones a servicios externos.
 *   **Base de Datos Relacional (PostgreSQL):** Una base de datos robusta, estructurada y escalable. Ideal para mantener la integridad de los datos relacionales (ej. un entrenador tiene muchos clientes, un cliente tiene muchas medidas).
-*   **Almacenamiento de Archivos (Amazon S3):** Utilizado exclusivamente para guardar archivos multimedia pesados: fotos de perfil, videos demostrativos de ejercicios, fotos de progreso de los clientes, etc. S3 es infinitamente escalable y económico para este propósito.
+*   **Almacenamiento de Archivos (Supabase Storage):** Utilizado para guardar archivos multimedia: **exclusivamente fotos de progreso físico de los clientes** y fotos de perfil. **Por decisión de negocio, los entrenadores no podrán subir videos demostrativos** para ahorrar ancho de banda y costos de almacenamiento (se pueden usar enlaces externos de YouTube si es necesario).
 
 ## 3. Gestión de Usuarios y Permisos
 
-El sistema implementará un control de acceso basado en roles (RBAC):
+El sistema implementará un control de acceso basado en roles (RBAC), pero dando libertad al usuario independiente:
 
 *   **Rol Entrenador:**
     *   Puede crear y configurar su perfil profesional.
-    *   Gestión de su cartera de clientes (invitar, aceptar o dar de baja).
-    *   Crear, leer, actualizar y eliminar (CRUD) rutinas y planes de nutrición para sus clientes.
-    *   Acceso al panel de "IA Entrenadora" para generar rutinas base.
+    *   Invita a clientes a ser asesorados (el cliente debe ACEPTAR para darle permisos sobre sus datos).
+    *   Crear, leer y actualizar rutinas personalizadas para sus clientes.
     *   Visualizar el progreso y métricas de sus entrenados.
 *   **Rol Cliente (Entrenado):**
-    *   Puede ver únicamente las rutinas y dietas asignadas por su entrenador.
-    *   Registrar el cumplimiento de sus tareas diarias.
-    *   Ingresar sus medidas corporales, peso y fotos de progreso (que se suben a S3).
+    *   Tiene el control de su data: puede aceptar o rechazar a un entrenador.
+    *   Puede usar la app de forma independiente (sin entrenador) utilizando el **Entrenador Virtual (IA)** para generar rutinas silenciosamente basadas en su peso y metas actuales.
+    *   Registrar el cumplimiento de sus tareas diarias, peso y **subir fotos de su progreso** a la nube (Supabase).
+    *   **Edición de Rutinas:** Si el cliente decide editar o alterar una rutina que le asignó su entrenador (ej. modificar peso o repeticiones), el sistema marcará esa rutina con una etiqueta de "Personalizada / Editada por el cliente" para que el entrenador esté al tanto.
+    *   **Calificación de Entrenadores:** Los clientes pueden dejar reseñas públicas y calificar (con estrellas) a sus entrenadores, construyendo un sistema de reputación dentro de la plataforma.
 *   **Seguridad:** Se utilizarán JSON Web Tokens (JWT) para la autenticación en la API. Cada vez que un usuario (entrenador o cliente) intente acceder a un recurso, el backend verificará su token y su rol antes de devolver información de la base de datos de PostgreSQL.
 
 ## 4. Servicio de IA: "La IA Entrenadora" (Google Gemini)
