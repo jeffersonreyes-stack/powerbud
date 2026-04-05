@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Pantallas
 import LoginScreen from './src/screens/LoginScreen';
@@ -21,13 +22,13 @@ const Tab = createBottomTabNavigator();
 
 // --- El Menú de Pestañas Inferiores ---
 function MainTabNavigator({ setIsAuthenticated, userRole }) {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-
           if (route.name === 'Inicio') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Dieta') {
@@ -41,12 +42,27 @@ function MainTabNavigator({ setIsAuthenticated, userRole }) {
           } else if (route.name === 'Mis Clientes') {
             iconName = focused ? 'people' : 'people-outline';
           }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={size} color={color} style={{ textShadowColor: focused ? '#ff00c8' : undefined, textShadowRadius: focused ? 8 : 0 }} />;
         },
-        tabBarActiveTintColor: '#2a9df4',
-        tabBarInactiveTintColor: 'gray',
-        tabBarStyle: { paddingBottom: 5, paddingTop: 5, height: 60 }
+        tabBarActiveTintColor: '#39ff14', // Neon green
+        tabBarInactiveTintColor: '#00eaff', // Neon blue
+        tabBarStyle: {
+          backgroundColor: '#18181b',
+          borderTopColor: '#ff00c8',
+          borderTopWidth: 2,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+          paddingTop: 5,
+          height: 60 + (insets.bottom > 0 ? insets.bottom : 8),
+          shadowColor: '#ff00c8',
+          shadowOpacity: 0.3,
+          shadowRadius: 10,
+          elevation: 8,
+        },
+        tabBarLabelStyle: {
+          fontWeight: 'bold',
+          textShadowColor: '#fffb00',
+          textShadowRadius: 6,
+        },
       })}
     >
       {/* Pasamos setIsAuthenticated al Dashboard para que pueda cerrar sesión */}
@@ -104,24 +120,26 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      {/* Sistema de Navegación "Switch" basado en Estado */}
-      {!isAuthenticated ? (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Login">
-            {props => <LoginScreen {...props} setIsAuthenticated={(val) => {
-               setIsAuthenticated(val);
-               AsyncStorage.getItem('userInfo').then(ui => {
-                  if(ui) setUserRole(JSON.parse(ui).role);
-               });
-            }} />}
-          </Stack.Screen>
-          <Stack.Screen name="Register" component={RegisterScreen} />
-        </Stack.Navigator>
-      ) : (
-        <MainTabNavigator setIsAuthenticated={setIsAuthenticated} userRole={userRole} />
-      )}
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        {/* Sistema de Navegación "Switch" basado en Estado */}
+        {!isAuthenticated ? (
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Login">
+              {props => <LoginScreen {...props} setIsAuthenticated={(val) => {
+                 setIsAuthenticated(val);
+                 AsyncStorage.getItem('userInfo').then(ui => {
+                    if(ui) setUserRole(JSON.parse(ui).role);
+                 });
+              }} />}
+            </Stack.Screen>
+            <Stack.Screen name="Register" component={RegisterScreen} />
+          </Stack.Navigator>
+        ) : (
+          <MainTabNavigator setIsAuthenticated={setIsAuthenticated} userRole={userRole} />
+        )}
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 
@@ -130,6 +148,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#18181b', // Cyberpunk dark
   },
 });
