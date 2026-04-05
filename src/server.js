@@ -293,6 +293,29 @@ app.get('/api/v2/diet/plan', authenticateToken, async (req, res) => {
   }
 });
 
+// -- MEAL LOGS: Historial de macros por día (últimos 14 días) --
+app.get('/api/v2/diet/daily-summary', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pgDb.query(
+      `SELECT log_date::text as date,
+        ROUND(SUM(calories)::numeric, 0) as calories,
+        ROUND(SUM(protein_g)::numeric, 1) as protein_g,
+        ROUND(SUM(carbs_g)::numeric, 1) as carbs_g,
+        ROUND(SUM(fat_g)::numeric, 1) as fat_g,
+        COUNT(*) as meals_count
+       FROM meal_logs
+       WHERE user_id = $1 AND log_date >= CURRENT_DATE - INTERVAL '13 days'
+       GROUP BY log_date
+       ORDER BY log_date ASC`,
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Error obteniendo resumen diario.' });
+  }
+});
+
 // -- MEAL LOGS: Obtener registros del día --
 app.get('/api/v2/diet/meals', authenticateToken, async (req, res) => {
   try {
