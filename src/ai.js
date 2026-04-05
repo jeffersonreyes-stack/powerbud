@@ -14,7 +14,7 @@ const genAI = new GoogleGenerativeAI(apiKey || 'dummy-key-for-dev');
  * Genera una rutina de entrenamiento estructurada basada en los parámetros del cliente.
  */
 const aiService = {
-  async generateWorkoutPlan(clientProfile) {
+  async generateWorkoutPlan(clientProfile, progressData = {}) {
     try {
       // Usamos el modelo más capaz para generación de texto complejo
       const model = genAI.getGenerativeModel({
@@ -49,6 +49,21 @@ const aiService = {
         - Objetivo principal: ${goal || 'Mejorar condición física general'}
         - Días disponibles por semana: ${days_per_week || 3} días
         - Lesiones o limitaciones físicas: ${injuries || 'Ninguna reportada'}
+
+        HISTORIAL DE PROGRESO REAL DEL USUARIO:
+        ${progressData.bodyMetrics && progressData.bodyMetrics.length > 0
+          ? `Peso corporal (registros recientes más antiguo → más reciente):
+          ${progressData.bodyMetrics.map(m => `${m.date}: ${m.weight_kg} kg${m.notes ? ` (${m.notes})` : ''}`).join(' | ')}
+          Tendencia: ${progressData.bodyMetrics.length >= 2
+            ? (progressData.bodyMetrics[progressData.bodyMetrics.length-1].weight_kg > progressData.bodyMetrics[0].weight_kg ? '⬆ Ganando peso' : '⬇ Bajando peso')
+            : 'Datos insuficientes'}`
+          : 'Sin registros de peso aún.'}
+        ${progressData.exerciseProgress && progressData.exerciseProgress.length > 0
+          ? `Ejercicios con progreso registrado (máximo peso levantado y sesiones):
+          ${progressData.exerciseProgress.map(e => `${e.exercise}: ${e.max_weight}kg máx, ${e.sessions} sesiones, último: ${e.last_date}`).join(' | ')}`
+          : 'Sin historial de ejercicios aún.'}
+
+        IMPORTANTE: Usa el historial de progreso para adaptar la rutina. Si hay ejercicios ya dominados, aplica progresión desde el peso máximo registrado. Si hay lesiones en las notas de peso, tenlas en cuenta estrictamente.
 
         Instrucciones estrictas:
         1. El mesociclo debe tener progresión de 6 semanas (aumenta intensidad/volumen progresivamente).
@@ -96,7 +111,7 @@ const aiService = {
     }
   },
 
-  async generateDietPlan(clientProfile, workoutSummary) {
+  async generateDietPlan(clientProfile, workoutSummary, nutritionHistory = {}) {
     try {
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
@@ -120,6 +135,13 @@ PERFIL DEL ATLETA:
 - Objetivo principal: ${goal || 'Mejorar condición física'}
 - Nivel de experiencia: ${experience_level || 'Intermedio'}
 - Lesiones/limitaciones: ${injuries || 'Ninguna'}
+
+HISTORIAL NUTRICIONAL REAL (últimos 7 días):
+${nutritionHistory.dailySummary && nutritionHistory.dailySummary.length > 0
+  ? nutritionHistory.dailySummary.map(d => `${d.date}: ${d.calories} kcal, proteína ${d.protein_g}g, carbos ${d.carbs_g}g, grasas ${d.fat_g}g`).join('\n')
+  : 'Sin registros de comidas aún.'}
+${nutritionHistory.avgCalories ? `Promedio consumido: ${nutritionHistory.avgCalories} kcal/día, proteína ${nutritionHistory.avgProtein}g/día` : ''}
+IMPORTANTE: Si el historial muestra déficit de proteína o exceso de calorías, ajusta el plan para corregir esos hábitos específicamente. Si no hay registros, diseña el plan desde cero.
 
 RUTINA ACTUAL:
 ${workoutSummary || 'Entrenamiento de fuerza e hipertrofia 4 días/semana'}

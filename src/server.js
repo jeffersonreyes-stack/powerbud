@@ -127,9 +127,30 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
       targetClientIdForTrainer = req.body.client_id;
     }
 
+    // Consultar historial de progreso del usuario para enriquecer el prompt
+    const targetIdForProgress = req.user.role === 'trainer' ? (req.body.client_id || userId) : userId;
+    const bodyMetricsRes = await pgDb.query(
+      `SELECT date::text, weight_kg, notes FROM body_metrics WHERE user_id = $1 ORDER BY date ASC LIMIT 6`,
+      [targetIdForProgress]
+    );
+    const exerciseProgressRes = await pgDb.query(
+      `SELECT exercise, MAX(weight) as max_weight, COUNT(*) as sessions,
+              MAX(date)::text as last_date
+       FROM workouts WHERE client_id = $1
+       GROUP BY exercise ORDER BY sessions DESC LIMIT 10`,
+      [targetIdForProgress]
+    );
+
+    const progressData = {
+      bodyMetrics: bodyMetricsRes.rows,
+      exerciseProgress: exerciseProgressRes.rows.map(r => ({
+        exercise: r.exercise, max_weight: r.max_weight, sessions: r.sessions, last_date: r.last_date
+      }))
+    };
+
     // Llamamos a la magia de Gemini (Entrenador Virtual) usando los datos recolectados
     console.log('Generando rutina mágica con Gemini. Objetivo:', clientProfile.goal);
-    const workoutPlan = await aiService.generateWorkoutPlan(clientProfile);
+    const workoutPlan = await aiService.generateWorkoutPlan(clientProfile, progressData);
 
     // GUARDADO AUTOMÁTICO EN BASE DE DATOS
     // El Entrenador Virtual itera sobre los días y ejercicios para inyectarlos en la tabla 'workouts'
@@ -263,7 +284,25 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       ? workoutRes.rows.map(r => r.exercise).join(', ')
       : null;
 
-    const dietPlan = await aiService.generateDietPlan(profile, workoutSummary);
+    // Consultar historial nutricional real de los últimos 7 días
+    const mealHistoryRes = await pgDb.query(
+      `SELECT log_date::text as date,
+        ROUND(SUM(calories)::numeric, 0) as calories,
+        ROUND(SUM(protein_g)::numeric, 1) as protein_g,
+        ROUND(SUM(carbs_g)::numeric, 1) as carbs_g,
+        ROUND(SUM(fat_g)::numeric, 1) as fat_g
+       FROM meal_logs WHERE user_id = $1 AND log_date >= CURRENT_DATE - INTERVAL '6 days'
+       GROUP BY log_date ORDER BY log_date ASC`,
+      [userId]
+    );
+    const mealRows = mealHistoryRes.rows;
+    const nutritionHistory = {
+      dailySummary: mealRows,
+      avgCalories: mealRows.length > 0 ? Math.round(mealRows.reduce((s, r) => s + Number(r.calories), 0) / mealRows.length) : null,
+      avgProtein: mealRows.length > 0 ? (mealRows.reduce((s, r) => s + Number(r.protein_g), 0) / mealRows.length).toFixed(1) : null,
+    };
+
+    const dietPlan = await aiService.generateDietPlan(profile, workoutSummary, nutritionHistory);
 
     // Guardar en DB
     await pgDb.query(
