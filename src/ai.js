@@ -74,6 +74,75 @@ const AI_SPECIALISTS = {
   },
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// CATÁLOGO DE ESPECIALISTAS IA — para nutricionistas
+// ══════════════════════════════════════════════════════════════════════════════
+const NUTRI_SPECIALISTS = {
+  deportiva: {
+    label: '🏅 Nutricionista Deportivo',
+    role: 'nutricionista especialista en rendimiento deportivo (ISSN Certified Sport Nutritionist), con experiencia en periodización nutricional para atletas de fuerza, resistencia y deportes de equipo',
+    methodology: 'Periodización de carbohidratos alrededor del entrenamiento (carb timing, carb cycling). Proteína 1.6-2.2 g/kg. Estrategias de recuperación: glucógeno post-esfuerzo. Suplementación basada en evidencia (creatina, cafeína, beta-alanina).',
+  },
+  perdida_grasa: {
+    label: '🔥 Especialista en Pérdida de Grasa',
+    role: 'dietista-nutricionista especialista en recomposición corporal, con metodología de déficit calórico sostenible que preserva masa muscular y optimiza la adherencia a largo plazo',
+    methodology: 'Déficit calórico moderado 300-500 kcal/día. Alta proteína (2.0-2.4 g/kg) para preservar músculo. Prioridad alimentos saciantes (fibra, proteína). Sin eliminación de grupos alimenticios. Manejo de antojos y hambre.',
+  },
+  ganancia_muscular: {
+    label: '💪 Especialista en Volumen y Músculo',
+    role: 'nutricionista especialista en hipertrofia muscular y ganancia de masa, con enfoque en superávit calórico limpio y timing de nutrientes para maximizar síntesis proteica muscular',
+    methodology: 'Superávit 250-400 kcal/día controlado. Proteína 1.8-2.2 g/kg distribuida en 4-5 tomas. Carbohidratos peri-entrenamiento enfatizados. Grasas saludables sin restricción excesiva. Minimizar ganancia de grasa.',
+  },
+  clinica: {
+    label: '🩺 Nutricionista Clínica',
+    role: 'dietista-nutricionista clínica con especialización en manejo nutricional de patologías metabólicas (diabetes tipo 2, resistencia a la insulina, síndrome metabólico, hipertensión arterial)',
+    methodology: 'Control glucémico mediante índice glucémico y carga glucémica. Distribución de macros adaptada a patología. Alimentos funcionales con evidencia clínica. Restricción de sodio y grasas saturadas cuando aplica. Coordinación con tratamiento médico.',
+  },
+  vegana: {
+    label: '🌱 Especialista en Nutrición Vegana/Vegetariana',
+    role: 'nutricionista especialista en plantas (Plant-Based Diet Dietitian), con expertise en cubrir todos los requerimientos nutricionales y de rendimiento sin productos de origen animal',
+    methodology: 'Combinación proteica completa (legumbres + cereales). Suplementación esencial: B12, D3, omega-3 (DHA/EPA de algas), hierro, zinc, yodo. Alimentos fermentados para biodisponibilidad. Energía adecuada para el rendimiento.',
+  },
+  rendimiento: {
+    label: '⚡ Nutrición para Alto Rendimiento',
+    role: 'nutricionista de alto rendimiento con experiencia en selecciones nacionales y clubes profesionales, especialista en estrategias de hidratación, suplementación legal y nutrición en competencia',
+    methodology: 'Carga de carbohidratos pre-competencia. Estrategias de hidratación y electrolitos. Gel y toma de energía durante eventos. Recuperación nutricional acelerada post-competencia. Control peso en deportes por categoría sin pérdida de rendimiento.',
+  },
+  pediatrica: {
+    label: '👶 Nutricionista Pediátrica',
+    role: 'nutricionista especialista en nutrición infantil y adolescente, con experiencia en crecimiento y desarrollo, alimentación selectiva, y nutrición en niños y jóvenes deportistas',
+    methodology: 'Requerimientos según etapa de crecimiento (Dietary Reference Intakes). Introducción alimentaria progresiva. Neofobia y estrategias de aceptación. Deportistas jóvenes: soporte energético para crecer y rendir. Sin dietas restrictivas en menores.',
+  },
+  adulto_mayor: {
+    label: '👴 Nutricionista para Adulto Mayor',
+    role: 'nutricionista gerontológica especialista en necesidades nutricionales del envejecimiento, con experiencia en prevención de sarcopenia, osteoporosis y desnutrición en personas mayores de 60 años',
+    methodology: 'Alta proteína (1.2-1.6 g/kg) para combatir sarcopenia. Calcio y vitamina D para huesos. Hidratación activa (sensación de sed reducida). Alimentos de fácil masticación y digestión. Vitamina B12 biodisponible. Calorías densas para apetito reducido.',
+  },
+  patologias: {
+    label: '⚕️ Nutrición Terapéutica y Patologías',
+    role: 'dietista-nutricionista especialista en terapia nutricional médica (MNT), con formación en manejo de múltiples patologías simultáneas: diabetes, enfermedad renal crónica, dislipidemia, obesidad y trastornos gastrointestinales',
+    methodology: 'Adaptación de macros a función renal (restricción proteica si ERC). Control lipídico: fibra soluble, omega-3, esteroles vegetales. Manejo SIBO/intestino irritable: dieta low-FODMAP. Registro y análisis de analíticas para ajuste dinámico del plan.',
+  },
+  general_nutri: {
+    label: '🥗 Nutricionista General',
+    role: 'nutricionista-dietista generalista con enfoque en promoción de hábitos alimenticios saludables, educación nutricional y planes equilibrados adaptados a la realidad y preferencias del paciente',
+    methodology: 'Plato saludable: 50% vegetales/fruta, 25% proteína magra, 25% carbohidratos complejos. Alimentos mínimamente procesados. Hidratación adecuada. Flexibilidad y adherencia a largo plazo como prioridad. Educación sobre etiquetado y compra inteligente.',
+  },
+};
+
+function resolveNutriSpecialist(nutriSpecialist, clientGoal) {
+  if (nutriSpecialist && NUTRI_SPECIALISTS[nutriSpecialist]) {
+    return NUTRI_SPECIALISTS[nutriSpecialist];
+  }
+  // fallback: inferir del objetivo
+  const g = (clientGoal || '').toLowerCase();
+  if (g.includes('grasa') || g.includes('bajar') || g.includes('peso')) return NUTRI_SPECIALISTS.perdida_grasa;
+  if (g.includes('músculo') || g.includes('masa') || g.includes('hipertrofia')) return NUTRI_SPECIALISTS.ganancia_muscular;
+  if (g.includes('deport') || g.includes('rendimiento') || g.includes('atleta')) return NUTRI_SPECIALISTS.deportiva;
+  if (g.includes('vegano') || g.includes('vegetariano') || g.includes('plant')) return NUTRI_SPECIALISTS.vegana;
+  return NUTRI_SPECIALISTS.general_nutri;
+}
+
 // Devuelve el especialista correcto: si el entrenador definió uno, se usa ese.
 // Si no, se infiere del objetivo del cliente (backward compatibility).
 function resolveSpecialist(trainerSpecialist, clientGoal) {
@@ -251,7 +320,7 @@ RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
     }
   },
 
-  async generateDietPlan(clientProfile, workoutContext = {}, nutritionHistory = {}) {
+  async generateDietPlan(clientProfile, workoutContext = {}, nutritionHistory = {}, nutritionistContext = {}) {
     try {
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
@@ -263,7 +332,25 @@ RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
         goal, experience_level, injuries
       } = clientProfile;
 
+      // Resolver especialista nutricional
+      const nutriSpec = resolveNutriSpecialist(nutritionistContext.ai_specialist, goal);
+
+      const nutriContextBlock = (nutritionistContext.nutritionist_instructions || nutritionistContext.ai_specialist)
+        ? `
+ESPECIALISTA NUTRICIONAL ASIGNADO: ${nutriSpec.label}
+ROL: Eres ${nutriSpec.role}.
+METODOLOGÍA A APLICAR: ${nutriSpec.methodology}
+${nutritionistContext.nutritionist_name ? `NUTRICIONISTA RESPONSABLE: ${nutritionistContext.nutritionist_name}` : ''}
+${nutritionistContext.nutritionist_instructions
+  ? `\nINSTRUCCIONES ESPECÍFICAS DEL NUTRICIONISTA (OBLIGATORIO APLICAR CON PRIORIDAD MÁXIMA):
+${nutritionistContext.nutritionist_instructions}
+Estas instrucciones del nutricionista tienen prioridad sobre cualquier sugerencia genérica. Respétalas al pie de la letra.`
+  : ''}
+`
+        : '';
+
       const prompt = `
+${nutriContextBlock}
 Eres un nutricionista deportivo experto en alimentación colombiana. Crea un plan de dieta semanal personalizado basado en el siguiente perfil:
 
 PERFIL DEL ATLETA:
@@ -348,3 +435,4 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin bloques de códi
 
 module.exports = aiService;
 module.exports.AI_SPECIALISTS = AI_SPECIALISTS;
+module.exports.NUTRI_SPECIALISTS = NUTRI_SPECIALISTS;

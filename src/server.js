@@ -436,13 +436,20 @@ app.use('/api/v2/notifications', notificationsRoutes);
 app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const profileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [userId]);
+    const senderRole = req.user.role;
+
+    // Si es nutricionista con client_id, usar el perfil del cliente
+    const targetId = (senderRole === 'nutritionist' || senderRole === 'trainer') && req.body.client_id
+      ? req.body.client_id
+      : userId;
+
+    const profileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [targetId]);
     const profile = profileRes.rows[0] || {};
 
     // Obtener el plan de mesociclo guardado (objetivo, estructura semanal)
     const workoutPlanRes = await pgDb.query(
       'SELECT plan_json FROM workout_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
-      [userId]
+      [targetId]
     );
     const savedPlan = workoutPlanRes.rows.length > 0 ? workoutPlanRes.rows[0].plan_json : null;
 
@@ -452,7 +459,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
        FROM workouts WHERE client_id = $1
        AND date >= CURRENT_DATE - INTERVAL '21 days'
        ORDER BY date DESC, exercise ASC LIMIT 40`,
-      [userId]
+      [targetId]
     );
 
     // ACWR para el prompt de dieta
@@ -460,7 +467,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       `SELECT date::text, SUM(weight * reps) as daily_volume
        FROM workouts WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '27 days'
        GROUP BY date ORDER BY date ASC`,
-      [userId]
+      [targetId]
     );
     const acwrDietRows = acwrDietRes.rows;
     const acuteD = acwrDietRows.filter(r => new Date(r.date) >= new Date(Date.now()-7*86400000)).reduce((s,r)=>s+Number(r.daily_volume),0);
@@ -471,7 +478,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       `SELECT AVG(sleep_hours)::numeric(4,1) as avg_sleep, AVG(stress_level)::numeric(3,1) as avg_stress
        FROM body_metrics WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '6 days'
        AND (sleep_hours IS NOT NULL OR stress_level IS NOT NULL)`,
-      [userId]
+      [targetId]
     );
     const recDiet = recovRowDiet.rows[0];
 
@@ -498,7 +505,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
         ROUND(SUM(fat_g)::numeric, 1) as fat_g
        FROM meal_logs WHERE user_id = $1 AND log_date >= CURRENT_DATE - INTERVAL '6 days'
        GROUP BY log_date ORDER BY log_date ASC`,
-      [userId]
+      [targetId]
     );
     const mealRows = mealHistoryRes.rows;
     const nutritionHistory = {
@@ -507,16 +514,31 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       avgProtein: mealRows.length > 0 ? (mealRows.reduce((s, r) => s + Number(r.protein_g), 0) / mealRows.length).toFixed(1) : null,
     };
 
-    const dietPlan = await aiService.generateDietPlan(profile, workoutContext, nutritionHistory);
+    // Construir nutritionistContext si el generador es nutricionista o entrenador
+    let nutritionistContext = {};
+    if (senderRole === 'nutritionist') {
+      const nProfileRes = await pgDb.query('SELECT ai_specialist FROM user_profiles WHERE user_id = $1', [userId]);
+      const nUserRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+      nutritionistContext = {
+        ai_specialist: nProfileRes.rows[0]?.ai_specialist || null,
+        nutritionist_instructions: req.body.nutritionist_instructions || null,
+        nutritionist_name: nUserRes.rows[0]?.name || nUserRes.rows[0]?.email || null,
+      };
+    }
 
-    // Guardar en DB
+    console.log('Generando dieta PowerBud A.I. Objetivo:', profile.goal, '| Especialista nutri:', nutritionistContext.ai_specialist || 'auto');
+    const dietPlan = await aiService.generateDietPlan(profile, workoutContext, nutritionHistory, nutritionistContext);
+
+    // Guardar en DB (para el cliente si client_id fue dado; para el usuario actual si no)
+    const saveTargetId = (senderRole === 'nutritionist' || senderRole === 'trainer') && req.body.client_id
+      ? req.body.client_id
+      : userId;
     await pgDb.query(
       'INSERT INTO diet_plans (user_id, plan_json) VALUES ($1, $2)',
-      [userId, JSON.stringify(dietPlan)]
+      [saveTargetId, JSON.stringify(dietPlan)]
     );
 
     // Notificación automática al generar dieta (si viene de nutricionista / entrenador para un cliente)
-    const senderRole = req.user.role;
     if ((senderRole === 'nutritionist' || senderRole === 'trainer') && req.body.client_id) {
       try {
         const senderRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);

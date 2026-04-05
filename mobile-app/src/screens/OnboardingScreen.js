@@ -64,6 +64,20 @@ const AI_SPECIALISTS = [
   { key: 'general',            label: '🎯 Entrenador Personal General',             desc: 'Balance fuerza, cardio y movilidad. Hábitos sostenibles.' },
 ];
 
+// Catálogo de especialistas IA para nutricionistas — sincronizado con ai.js
+const NUTRI_SPECIALISTS_UI = [
+  { key: 'deportiva',        label: '🏅 Nutricionista Deportivo',              desc: 'Periodización nutricional, carb timing/cycling para atletas.' },
+  { key: 'perdida_grasa',    label: '🔥 Especialista en Pérdida de Grasa',     desc: 'Déficit sostenible 300-500 kcal/día, alta proteína, saciedad.' },
+  { key: 'ganancia_muscular',label: '💪 Especialista en Volumen y Músculo',    desc: 'Superávit limpio 250-400 kcal, proteína distribuida en 5 tomas.' },
+  { key: 'clinica',          label: '🩺 Nutricionista Clínica',                desc: 'Diabetes, HTA, síndrome metabólico. Índice glucémico y patologías.' },
+  { key: 'vegana',           label: '🌱 Especialista Vegana/Vegetariana',      desc: 'Proteína completa, B12, D3, omega-3 de algas. Sin productos animales.' },
+  { key: 'rendimiento',      label: '⚡ Nutrición de Alto Rendimiento',         desc: 'Carga de carbos, hidratación, suplementación legal en competencia.' },
+  { key: 'pediatrica',       label: '👶 Nutricionista Pediátrica',             desc: 'Crecimiento y desarrollo, adolescentes deportistas, neofobia.' },
+  { key: 'adulto_mayor',     label: '👴 Nutricionista Adulto Mayor',           desc: 'Sarcopenia, calcio, B12 biodisponible, alimentos blandos.' },
+  { key: 'patologias',       label: '⚕️ Nutrición Terapéutica y Patologías',   desc: 'ERC, dislipidemia, intestino irritable, manejo multi-patología.' },
+  { key: 'general_nutri',    label: '🥗 Nutricionista General',                desc: 'Plato saludable, educación alimentaria, adherencia a largo plazo.' },
+];
+
 export default function OnboardingScreen({ onComplete, initialData = null, onCancel = null, userRole = 'client' }) {
   const isEditing = !!initialData;
   const isProfessional = userRole === 'trainer' || userRole === 'nutritionist';
@@ -156,7 +170,7 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
     const especialidades = isTrainer ? ESPECIALIDADES_TRAINER : ESPECIALIDADES_NUTRI;
     const rolLabel = isTrainer ? 'Entrenador' : 'Nutricionista';
     const rolEmoji = isTrainer ? '🏋️' : '🥗';
-    const totalSteps = isTrainer ? 3 : 2;
+    const totalSteps = 3; // ambos tienen 3 pasos ahora
 
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -194,7 +208,7 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
           </View>
         )}
 
-        {/* PASO 2 TRAINER: Asistente IA */}
+        {/* PASO 2 TRAINER: Asistente IA de entrenamiento */}
         {step === 2 && isTrainer && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>🤖 Paso 2 / {totalSteps} — Asistente IA</Text>
@@ -236,10 +250,51 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
           </View>
         )}
 
-        {/* PASO 2 NUTRI / PASO 3 TRAINER: Disponibilidad y tarifa */}
-        {((step === 2 && !isTrainer) || (step === 3 && isTrainer)) && (
+        {/* PASO 2 NUTRICIONISTA: Asistente IA nutricional */}
+        {step === 2 && !isTrainer && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{rolEmoji} Paso {isTrainer ? 3 : 2} / {totalSteps} — Disponibilidad y Tarifa</Text>
+            <Text style={styles.cardTitle}>🤖 Paso 2 / {totalSteps} — Asistente IA</Text>
+            <Text style={styles.cardDesc}>
+              Selecciona tu especialización nutricional. La IA generará planes de dieta con tu metodología y enfoque específico.
+            </Text>
+
+            <Text style={styles.label}>Especialista de nutrición IA *</Text>
+            {NUTRI_SPECIALISTS_UI.map(s => (
+              <TouchableOpacity
+                key={s.key}
+                style={[styles.specialistCard, aiSpecialist === s.key && styles.specialistCardActive]}
+                onPress={() => setAiSpecialist(s.key)}
+              >
+                <View style={styles.specialistRow}>
+                  <Text style={[styles.specialistLabel, aiSpecialist === s.key && styles.specialistLabelActive]}>
+                    {s.label}
+                  </Text>
+                  {aiSpecialist === s.key && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={[styles.specialistDesc, aiSpecialist === s.key && styles.specialistDescActive]}>
+                  {s.desc}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.navRow}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
+                <Text style={styles.backBtnText}>← Atrás</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.nextBtn} onPress={() => {
+                if (!aiSpecialist) { Alert.alert('Selecciona un especialista', 'Elige la especialización de IA que mejor represente tu enfoque nutricional.'); return; }
+                setStep(3);
+              }}>
+                <Text style={styles.nextBtnText}>Siguiente →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* PASO 3: Disponibilidad y tarifa (ambos roles) */}
+        {step === 3 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{rolEmoji} Paso 3 / {totalSteps} — Disponibilidad y Tarifa</Text>
             <Text style={styles.cardDesc}>Ayuda a tus futuros asesorados a saber cuándo y cómo trabajar contigo.</Text>
 
             <Text style={styles.label}>Disponibilidad *</Text>
@@ -259,7 +314,7 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
             />
 
             <View style={styles.navRow}>
-              <TouchableOpacity style={styles.backBtn} onPress={() => setStep(isTrainer ? 2 : 1)}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => setStep(2)}>
                 <Text style={styles.backBtnText}>← Atrás</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.finishBtn} onPress={handleFinishProfessional} disabled={loading}>
