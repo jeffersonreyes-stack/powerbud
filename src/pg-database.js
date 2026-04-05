@@ -208,6 +208,13 @@ async function initDb() {
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g REAL DEFAULT 100`);
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_label VARCHAR(20) DEFAULT 'g'`);
 
+    // Limpiar prefijos de día en ejercicios generados por IA (ej: "Día X: Fuerza...: Sentadilla" → "Sentadilla")
+    await client.query(`
+      UPDATE workouts
+      SET exercise = REGEXP_REPLACE(exercise, '^.+:\\s*', '', 'g')
+      WHERE exercise LIKE '%:%'
+    `);
+
     // ── Seed alimentos base (colombianos / latinos) ────────────────────────
     const foodSeed = [
       // Proteínas

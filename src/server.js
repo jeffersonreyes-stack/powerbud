@@ -205,7 +205,7 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
            if (match) repsToSave = parseInt(match[0], 10);
         }
 
-        const exerciseName = `${day.focus}: ${exercise.name}`;
+        const exerciseName = exercise.name;
 
         // Determinar a quién se le asigna la rutina en la base de datos
         // Si el rol es cliente, usa su propio ID (userId) y el trainer_id queda NULL (Entrenador Virtual)
