@@ -208,6 +208,9 @@ async function initDb() {
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g REAL DEFAULT 100`);
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_label VARCHAR(20) DEFAULT 'g'`);
 
+    // Columna para marcar registros generados automáticamente por la IA (nunca registrados manualmente)
+    await client.query(`ALTER TABLE workouts ADD COLUMN IF NOT EXISTS is_ai_generated BOOLEAN DEFAULT FALSE`);
+
     // Limpiar prefijos de día en ejercicios generados por IA (ej: "Día X: Fuerza...: Sentadilla" → "Sentadilla")
     await client.query(`
       UPDATE workouts
@@ -215,15 +218,21 @@ async function initDb() {
       WHERE exercise LIKE '%:%'
     `);
 
-    // Eliminar workouts insertados automáticamente por la IA (fecha futura o pasada con peso exacto de 10kg y trainer_id NULL)
-    // Los workouts reales del usuario siempre tienen peso personalizado o trainer_id asignado
+    // Marcar como AI todos los registros con las características del plan generado automáticamente:
+    // peso=10 (placeholder), trainer_id NULL, nunca editado, fecha anterior al fix (Abr 6 2026).
+    // Esto es una migración one-shot: los registros manuales reales nunca tienen is_ai_generated=TRUE.
     await client.query(`
-      DELETE FROM workouts
-      WHERE trainer_id IS NULL
+      UPDATE workouts
+      SET is_ai_generated = TRUE
+      WHERE is_ai_generated = FALSE
+        AND trainer_id IS NULL
         AND weight = 10
         AND modified_by_client = FALSE
-        AND date > CURRENT_DATE
+        AND date < '2026-04-06'
     `);
+
+    // Eliminar todos los registros marcados como generados por IA (limpiar historial falso)
+    await client.query(`DELETE FROM workouts WHERE is_ai_generated = TRUE`);
 
     // ── Seed alimentos base (colombianos / latinos) ────────────────────────
     const foodSeed = [
