@@ -130,7 +130,7 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
     // Consultar historial de progreso del usuario para enriquecer el prompt
     const targetIdForProgress = req.user.role === 'trainer' ? (req.body.client_id || userId) : userId;
     const bodyMetricsRes = await pgDb.query(
-      `SELECT date::text, weight_kg, notes FROM body_metrics WHERE user_id = $1 ORDER BY date ASC LIMIT 6`,
+      `SELECT date::text, weight_kg, sleep_hours, stress_level, notes FROM body_metrics WHERE user_id = $1 ORDER BY date ASC LIMIT 6`,
       [targetIdForProgress]
     );
     const exerciseProgressRes = await pgDb.query(
@@ -141,15 +141,43 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
       [targetIdForProgress]
     );
 
+    // ACWR para el prompt de rutina
+    const acwrVolumeRes = await pgDb.query(
+      `SELECT date::text, SUM(weight * reps) as daily_volume
+       FROM workouts WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '27 days'
+       GROUP BY date ORDER BY date ASC`,
+      [targetIdForProgress]
+    );
+    const acwrRows = acwrVolumeRes.rows;
+    const acuteVol = acwrRows.filter(r => new Date(r.date) >= new Date(Date.now() - 7*86400000)).reduce((s,r) => s+Number(r.daily_volume),0);
+    const chronicVol = acwrRows.reduce((s,r) => s+Number(r.daily_volume),0) / 4;
+    const computedAcwr = chronicVol > 0 ? Math.round(acuteVol/chronicVol*100)/100 : null;
+    const acwrZoneStr = computedAcwr === null ? 'sin datos' : computedAcwr < 0.8 ? 'subcarga' : computedAcwr <= 1.3 ? 'óptima' : computedAcwr <= 1.5 ? 'precaución' : 'sobreentrenamiento';
+
+    // Sueño y estrés recientes
+    const recoveryRow = await pgDb.query(
+      `SELECT AVG(sleep_hours)::numeric(4,1) as avg_sleep, AVG(stress_level)::numeric(3,1) as avg_stress
+       FROM body_metrics WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '6 days'
+       AND (sleep_hours IS NOT NULL OR stress_level IS NOT NULL)`,
+      [targetIdForProgress]
+    );
+    const recoveryStats = recoveryRow.rows[0];
+
     const progressData = {
       bodyMetrics: bodyMetricsRes.rows,
       exerciseProgress: exerciseProgressRes.rows.map(r => ({
         exercise: r.exercise, max_weight: r.max_weight, sessions: r.sessions, last_date: r.last_date
-      }))
+      })),
+      recovery: {
+        acwr: computedAcwr,
+        acwr_zone: acwrZoneStr,
+        avg_sleep: recoveryStats.avg_sleep ? Number(recoveryStats.avg_sleep) : null,
+        avg_stress: recoveryStats.avg_stress ? Number(recoveryStats.avg_stress) : null,
+      }
     };
 
-    // Llamamos a la magia de Gemini (Entrenador Virtual) usando los datos recolectados
-    console.log('Generando rutina mágica con Gemini. Objetivo:', clientProfile.goal);
+    // Llamamos a PowerBud A.I. (Gemini) usando los datos recolectados
+    console.log('Generando rutina PowerBud A.I. con Gemini. Objetivo:', clientProfile.goal);
     const workoutPlan = await aiService.generateWorkoutPlan(clientProfile, progressData);
 
     // GUARDADO AUTOMÁTICO EN BASE DE DATOS
@@ -200,13 +228,13 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'El Entrenador Virtual ha generado tu rutina y la ha guardado en tu historial.',
+      message: 'PowerBud A.I. ha generado tu rutina y la ha guardado en tu historial.',,
       data: workoutPlan,
       profileUsed: clientProfile
     });
 
   } catch (error) {
-    console.error('Error en el Entrenador Virtual (IA):', error);
+    console.error('Error en PowerBud A.I.:', error);
     res.status(500).json({ error: 'Hubo un problema al contactar a la Inteligencia Artificial. Inténtalo más tarde.' });
   }
 });
@@ -258,6 +286,95 @@ app.get('/api/v2/progress/exercise-history', authenticateToken, async (req, res)
   }
 });
 
+// -- TASA DE RECUPERACIÓN: ACWR + métricas de sueño/estrés --
+app.get('/api/v2/progress/recovery', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Volumen diario últimos 28 días (weight × reps por día)
+    const volumeRes = await pgDb.query(
+      `SELECT date::text, SUM(weight * reps) as daily_volume
+       FROM workouts WHERE client_id = $1
+       AND date >= CURRENT_DATE - INTERVAL '27 days'
+       GROUP BY date ORDER BY date ASC`,
+      [userId]
+    );
+    const volumeByDay = volumeRes.rows;
+
+    // ACWR: carga aguda (7 días) / carga crónica (promedio semanas últimos 28 días)
+    const acuteLoad = volumeByDay
+      .filter(r => new Date(r.date) >= new Date(Date.now() - 7 * 86400000))
+      .reduce((s, r) => s + Number(r.daily_volume), 0);
+
+    const chronicLoad = volumeByDay.reduce((s, r) => s + Number(r.daily_volume), 0) / 4; // 4 semanas
+    const acwr = chronicLoad > 0 ? Math.round((acuteLoad / chronicLoad) * 100) / 100 : null;
+
+    // Índice de monotonía (CV del volumen diario, últimos 7 días)
+    const recentVolumes = volumeByDay
+      .filter(r => new Date(r.date) >= new Date(Date.now() - 7 * 86400000))
+      .map(r => Number(r.daily_volume));
+    let monotonyIndex = null;
+    if (recentVolumes.length >= 3) {
+      const avg = recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length;
+      const std = Math.sqrt(recentVolumes.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / recentVolumes.length);
+      monotonyIndex = avg > 0 ? Math.round((std / avg) * 100) / 100 : null;
+    }
+
+    // Sueño y estrés: promedios últimos 7 días
+    const recoveryMetricsRes = await pgDb.query(
+      `SELECT AVG(sleep_hours)::numeric(4,1) as avg_sleep,
+              AVG(stress_level)::numeric(3,1) as avg_stress,
+              COUNT(*) as days_tracked
+       FROM body_metrics
+       WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '6 days'
+       AND (sleep_hours IS NOT NULL OR stress_level IS NOT NULL)`,
+      [userId]
+    );
+    const recoveryMetrics = recoveryMetricsRes.rows[0];
+
+    // Nivel de recuperación estimado (0-100)
+    let recoveryScore = null;
+    const factors = [];
+    if (acwr !== null) {
+      const acwrScore = acwr <= 0.8 ? 60 : acwr <= 1.3 ? 100 : acwr <= 1.5 ? 60 : 30;
+      factors.push(acwrScore * 0.5);
+    }
+    if (recoveryMetrics.avg_sleep !== null) {
+      const sleepScore = Math.min(Number(recoveryMetrics.avg_sleep) / 8, 1) * 100;
+      factors.push(sleepScore * 0.3);
+    }
+    if (recoveryMetrics.avg_stress !== null) {
+      const stressScore = (5 - Number(recoveryMetrics.avg_stress)) / 4 * 100;
+      factors.push(stressScore * 0.2);
+    }
+    if (factors.length > 0) {
+      recoveryScore = Math.round(factors.reduce((a, b) => a + b, 0));
+    }
+
+    // Zona ACWR
+    const acwrZone = acwr === null ? 'sin datos'
+      : acwr < 0.8 ? 'subcarga'
+      : acwr <= 1.3 ? 'óptima'
+      : acwr <= 1.5 ? 'precaución'
+      : 'sobreentrenamiento';
+
+    res.json({
+      acwr,
+      acwr_zone: acwrZone,
+      acute_load: Math.round(acuteLoad),
+      chronic_load: Math.round(chronicLoad),
+      monotony_index: monotonyIndex,
+      avg_sleep_hours: recoveryMetrics.avg_sleep ? Number(recoveryMetrics.avg_sleep) : null,
+      avg_stress_level: recoveryMetrics.avg_stress ? Number(recoveryMetrics.avg_stress) : null,
+      days_tracked: Number(recoveryMetrics.days_tracked),
+      recovery_score: recoveryScore,
+    });
+  } catch (error) {
+    console.error('Error calculando recuperación:', error);
+    res.status(500).json({ error: 'Error calculando tasa de recuperación.' });
+  }
+});
+
 // -- RUTAS v2 (PostgreSQL) --
 // Registramos las rutas migradas bajo el prefijo /api/v2/
 app.use('/api/v2/foods', foodsRoutes);
@@ -291,12 +408,38 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       [userId]
     );
 
+    // ACWR para el prompt de dieta
+    const acwrDietRes = await pgDb.query(
+      `SELECT date::text, SUM(weight * reps) as daily_volume
+       FROM workouts WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '27 days'
+       GROUP BY date ORDER BY date ASC`,
+      [userId]
+    );
+    const acwrDietRows = acwrDietRes.rows;
+    const acuteD = acwrDietRows.filter(r => new Date(r.date) >= new Date(Date.now()-7*86400000)).reduce((s,r)=>s+Number(r.daily_volume),0);
+    const chronicD = acwrDietRows.reduce((s,r)=>s+Number(r.daily_volume),0)/4;
+    const acwrDiet = chronicD > 0 ? Math.round(acuteD/chronicD*100)/100 : null;
+
+    const recovRowDiet = await pgDb.query(
+      `SELECT AVG(sleep_hours)::numeric(4,1) as avg_sleep, AVG(stress_level)::numeric(3,1) as avg_stress
+       FROM body_metrics WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '6 days'
+       AND (sleep_hours IS NOT NULL OR stress_level IS NOT NULL)`,
+      [userId]
+    );
+    const recDiet = recovRowDiet.rows[0];
+
     // Construir objeto de entrenamiento para el prompt
     const workoutContext = {
       mesocycleGoal: savedPlan?.workout_plan?.goal || null,
       progressionNotes: savedPlan?.workout_plan?.progression_notes || null,
       trainingDays: savedPlan?.workout_plan?.days?.map(d => `${d.focus} (${d.exercises?.map(e => e.name).join(', ')})`).join(' | ') || null,
       recentLogs: workoutLogsRes.rows,
+      recovery: {
+        acwr: acwrDiet,
+        acwr_zone: acwrDiet === null ? 'sin datos' : acwrDiet < 0.8 ? 'subcarga' : acwrDiet <= 1.3 ? 'óptima' : acwrDiet <= 1.5 ? 'precaución' : 'sobreentrenamiento',
+        avg_sleep: recDiet.avg_sleep ? Number(recDiet.avg_sleep) : null,
+        avg_stress: recDiet.avg_stress ? Number(recDiet.avg_stress) : null,
+      }
     };
 
     // Consultar historial nutricional real de los últimos 7 días

@@ -41,10 +41,14 @@ export default function ProgressScreen() {
   // --- TAB CUERPO ---
   const [weight, setWeight] = useState('');
   const [notes, setNotes] = useState('');
+  const [sleepHours, setSleepHours] = useState('');
+  const [stressLevel, setStressLevel] = useState(''); // 1-5
   const [photo, setPhoto] = useState(null);
   const [savingBody, setSavingBody] = useState(false);
   const [bodyHistory, setBodyHistory] = useState([]);
   const [loadingBody, setLoadingBody] = useState(true);
+  const [recovery, setRecovery] = useState(null);
+  const [loadingRecovery, setLoadingRecovery] = useState(true);
 
   // --- TAB EJERCICIOS ---
   const [exercises, setExercises] = useState([]);
@@ -58,6 +62,7 @@ export default function ProgressScreen() {
   useEffect(() => {
     fetchBodyHistory();
     fetchExercises();
+    fetchRecovery();
   }, []);
 
   const fetchBodyHistory = async () => {
@@ -66,6 +71,14 @@ export default function ProgressScreen() {
       setBodyHistory(r.data);
     } catch (e) { console.error(e); }
     finally { setLoadingBody(false); }
+  };
+
+  const fetchRecovery = async () => {
+    try {
+      const r = await api.get('/v2/progress/recovery');
+      setRecovery(r.data);
+    } catch (e) { console.error(e); }
+    finally { setLoadingRecovery(false); }
   };
 
   const fetchExercises = async () => {
@@ -136,11 +149,78 @@ export default function ProgressScreen() {
       {/* ── TAB CUERPO ── */}
       {tab === 'cuerpo' && (
         <ScrollView contentContainerStyle={styles.scroll}>
+          <Text style={styles.sectionTitle}>� Tasa de Recuperación</Text>
+          {loadingRecovery ? <ActivityIndicator color="#39ff14" /> : !recovery ? null : (
+            <View style={[styles.card, { borderLeftColor:
+              recovery.acwr_zone === 'óptima' ? '#39ff14' :
+              recovery.acwr_zone === 'precaución' ? '#fffb00' : '#ff00c8' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <View>
+                  <Text style={styles.recoveryLabel}>ACWR</Text>
+                  <Text style={styles.recoveryVal}>{recovery.acwr ?? '—'}</Text>
+                  <Text style={[styles.recoveryZone, { color:
+                    recovery.acwr_zone === 'óptima' ? '#39ff14' :
+                    recovery.acwr_zone === 'precaución' ? '#fffb00' : '#ff00c8' }]}>
+                    {recovery.acwr_zone?.toUpperCase()}
+                  </Text>
+                </View>
+                {recovery.recovery_score !== null && (
+                  <View style={styles.scoreCircle}>
+                    <Text style={styles.scoreNum}>{recovery.recovery_score}</Text>
+                    <Text style={styles.scoreLabel}>score</Text>
+                  </View>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {recovery.avg_sleep_hours !== null && (
+                  <View style={styles.recoveryPill}>
+                    <Text style={styles.recoveryPillIcon}>💤</Text>
+                    <Text style={styles.recoveryPillVal}>{recovery.avg_sleep_hours}h</Text>
+                    <Text style={styles.recoveryPillLabel}>sueño avg</Text>
+                  </View>
+                )}
+                {recovery.avg_stress_level !== null && (
+                  <View style={styles.recoveryPill}>
+                    <Text style={styles.recoveryPillIcon}>🧠</Text>
+                    <Text style={styles.recoveryPillVal}>{recovery.avg_stress_level}/5</Text>
+                    <Text style={styles.recoveryPillLabel}>estrés avg</Text>
+                  </View>
+                )}
+                {recovery.acwr !== null && (
+                  <View style={styles.recoveryPill}>
+                    <Text style={styles.recoveryPillIcon}>⚡</Text>
+                    <Text style={styles.recoveryPillVal}>{recovery.acute_load}</Text>
+                    <Text style={styles.recoveryPillLabel}>carga 7d</Text>
+                  </View>
+                )}
+              </View>
+              {recovery.acwr_zone === 'sobreentrenamiento' && (
+                <Text style={styles.recoveryWarning}>⚠️ ACWR {recovery.acwr} — Reduce volumen y prioriza el descanso.</Text>
+              )}
+              {recovery.acwr_zone === 'precaución' && (
+                <Text style={[styles.recoveryWarning, { color: '#fffb00' }]}>⚠️ Carga elevada. Monitorea cómo te sientes.</Text>
+              )}
+              {recovery.avg_sleep_hours !== null && recovery.avg_sleep_hours < 7 && (
+                <Text style={styles.recoveryWarning}>💤 Sueño bajo ({recovery.avg_sleep_hours}h). El descanso es clave para recuperarte.</Text>
+              )}
+            </View>
+          )}
+
           <Text style={styles.sectionTitle}>📏 Registro Corporal</Text>
 
           <View style={styles.card}>
             <Text style={styles.label}>Peso actual (kg) *</Text>
             <TextInput style={styles.input} placeholder="Ej: 75.5" keyboardType="numeric" value={weight} onChangeText={setWeight} placeholderTextColor="#444" />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>💤 Horas de sueño</Text>
+                <TextInput style={styles.input} placeholder="Ej: 7.5" keyboardType="decimal-pad" value={sleepHours} onChangeText={setSleepHours} placeholderTextColor="#444" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>🧠 Estrés (1-5)</Text>
+                <TextInput style={styles.input} placeholder="1=bajo 5=alto" keyboardType="numeric" value={stressLevel} onChangeText={v => setStressLevel(v.replace(/[^1-5]/g, ''))} placeholderTextColor="#444" maxLength={1} />
+              </View>
+            </View>
             <Text style={styles.label}>Notas / lesiones</Text>
             <TextInput style={[styles.input, { height: 70, textAlignVertical: 'top' }]} placeholder="¿Cómo te sientes hoy?" multiline value={notes} onChangeText={setNotes} placeholderTextColor="#444" />
             <TouchableOpacity style={styles.photoBtn} onPress={pickImage}>
@@ -269,6 +349,18 @@ const styles = StyleSheet.create({
   histDate: { fontSize: 12, color: '#00eaff' },
   histWeight: { fontSize: 22, fontWeight: 'bold', color: '#39ff14', textShadowColor: '#fffb00', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 4 },
   histNotes: { fontSize: 12, fontStyle: 'italic', color: '#fffb00', marginTop: 2 },
+  // Recovery card
+  recoveryLabel: { color: '#aaa', fontSize: 11, fontWeight: '600' },
+  recoveryVal: { color: '#39ff14', fontSize: 28, fontWeight: 'bold' },
+  recoveryZone: { fontSize: 11, fontWeight: 'bold', marginTop: 2 },
+  scoreCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#1a1a2e', borderWidth: 2, borderColor: '#ff00c8', justifyContent: 'center', alignItems: 'center' },
+  scoreNum: { color: '#fff', fontWeight: 'bold', fontSize: 22 },
+  scoreLabel: { color: '#aaa', fontSize: 9 },
+  recoveryPill: { flex: 1, backgroundColor: '#1a1a2e', borderRadius: 8, padding: 8, alignItems: 'center' },
+  recoveryPillIcon: { fontSize: 16 },
+  recoveryPillVal: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  recoveryPillLabel: { color: '#555', fontSize: 10 },
+  recoveryWarning: { color: '#ff00c8', fontSize: 12, marginTop: 8, fontStyle: 'italic' },
   exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#232946', borderRadius: 10, padding: 14, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#00eaff' },
   exName: { color: '#00eaff', fontWeight: '600', fontSize: 14, flex: 1 },
   exMeta: { color: '#555', fontSize: 11, marginTop: 3 },

@@ -113,6 +113,11 @@ async function initDb() {
       )
     `);
 
+    // Columnas de recuperación (agregadas progresivamente, seguras con IF NOT EXISTS)
+    await client.query(`ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS sleep_hours REAL`);
+    await client.query(`ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS stress_level INTEGER`);
+    await client.query(`ALTER TABLE workouts ADD COLUMN IF NOT EXISTS rpe INTEGER`);
+
     // Tabla de Perfil Inicial del Usuario (Onboarding)
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_profiles (

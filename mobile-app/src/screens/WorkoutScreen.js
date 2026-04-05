@@ -190,7 +190,7 @@ export default function WorkoutScreen({ route }) {
           renderItem={renderWorkout}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No tienes rutinas registradas. ¡Usa el Entrenador Virtual!</Text>
+            <Text style={styles.emptyText}>No tienes rutinas registradas. ¡Usa PowerBud A.I. en la pestaña Inicio!</Text>
           }
         />
       )}

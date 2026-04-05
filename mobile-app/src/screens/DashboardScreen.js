@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api';
+import OnboardingScreen from './OnboardingScreen';
 
 export default function DashboardScreen({ setIsAuthenticated }) {
   const [user, setUser] = useState(null);
@@ -9,6 +10,8 @@ export default function DashboardScreen({ setIsAuthenticated }) {
   const [aiWorkout, setAiWorkout] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [invitations, setInvitations] = useState([]);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [profileData, setProfileData] = useState(null);
 
   // Al cargar, recuperar información del usuario y el plan guardado
   useEffect(() => {
@@ -20,6 +23,7 @@ export default function DashboardScreen({ setIsAuthenticated }) {
         if (parsedUser.role === 'client') {
           fetchInvitations();
           fetchSavedPlan();
+          fetchProfile();
         } else {
           setLoadingPlan(false);
         }
@@ -37,6 +41,13 @@ export default function DashboardScreen({ setIsAuthenticated }) {
     } finally {
       setLoadingPlan(false);
     }
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const res = await api.get('/v2/user-profile');
+      if (res.data) setProfileData(res.data);
+    } catch (e) { console.error('Error cargando perfil', e); }
   };
 
   const fetchInvitations = async () => {
@@ -82,13 +93,21 @@ export default function DashboardScreen({ setIsAuthenticated }) {
   };
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
       <View style={styles.header}>
         <Text style={styles.greeting}>Hola, {user?.role === 'trainer' ? 'Entrenador' : 'Atleta'}</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-          <Text style={styles.logoutText}>Salir</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {user?.role === 'client' && (
+            <TouchableOpacity onPress={() => setShowEditProfile(true)} style={styles.editProfileBtn}>
+              <Text style={styles.editProfileText}>⚙️ Perfil</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+            <Text style={styles.logoutText}>Salir</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.emailText}>{user?.email}</Text>
@@ -113,12 +132,12 @@ export default function DashboardScreen({ setIsAuthenticated }) {
         </View>
       )}
 
-      {/* Tarjeta de Inteligencia Artificial (Entrenador Virtual - Solo para clientes en el dashboard) */}
+      {/* Tarjeta PowerBud A.I. - Solo para clientes */}
       {user?.role === 'client' && (
         <View style={styles.aiCard}>
-          <Text style={styles.cardTitle}>🤖 Entrenador Virtual</Text>
+          <Text style={styles.cardTitle}>🤖 PowerBud A.I.</Text>
           <Text style={styles.cardDesc}>
-            Dejaremos que la Inteligencia Artificial analice tus últimos registros de peso y metas para crearte una rutina perfecta.
+            La inteligencia artificial analiza tu perfil, historial de entrenamiento y progreso real para generarte un mesociclo de 6 semanas completamente personalizado.
           </Text>
 
           <TouchableOpacity
@@ -129,7 +148,7 @@ export default function DashboardScreen({ setIsAuthenticated }) {
             {loadingAI ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.magicButtonText}>✨ Generar Rutina Mágica</Text>
+              <Text style={styles.magicButtonText}>⚡ Generar Rutina PowerBud A.I.</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -138,7 +157,7 @@ export default function DashboardScreen({ setIsAuthenticated }) {
       {user?.role === 'trainer' && (
         <View style={styles.trainerWelcomeCard}>
            <Text style={styles.cardTitle}>Panel de Control</Text>
-           <Text style={styles.cardDesc}>Bienvenido a tu panel de entrenador. Ve a la pestaña "Mis Clientes" para gestionar y asignar rutinas manuales o usar la IA para tus atletas.</Text>
+           <Text style={styles.cardDesc}>Bienvenido a tu panel de entrenador. Ve a la pestaña "Mis Clientes" para gestionar y asignar rutinas manuales o usar PowerBud A.I. para tus atletas.</Text>
         </View>
       )}
 
@@ -175,12 +194,26 @@ export default function DashboardScreen({ setIsAuthenticated }) {
           <TouchableOpacity style={styles.regenBtn} onPress={generateMagicWorkout} disabled={loadingAI}>
             {loadingAI
               ? <ActivityIndicator color="#18181b" />
-              : <Text style={styles.regenBtnText}>🔄 Regenerar Rutina</Text>}
+              : <Text style={styles.regenBtnText}>🔄 Regenerar con PowerBud A.I.</Text>}
           </TouchableOpacity>
         </View>
       ) : null}
 
     </ScrollView>
+
+      {/* Modal edición de perfil */}
+      <Modal visible={showEditProfile} animationType="slide" onRequestClose={() => setShowEditProfile(false)}>
+        <OnboardingScreen
+          initialData={profileData}
+          onComplete={() => {
+            setShowEditProfile(false);
+            fetchProfile();
+            Alert.alert('✅ Perfil actualizado', 'Tus datos han sido guardados. Regenera tu rutina para que la IA los considere.');
+          }}
+          onCancel={() => setShowEditProfile(false)}
+        />
+      </Modal>
+    </View>
   );
 }
 
@@ -303,7 +336,7 @@ const styles = StyleSheet.create({
   planWeeks: { color: '#fffb00', fontWeight: 'bold', fontSize: 13 },
   savedAt: { color: '#555', fontSize: 11, marginBottom: 8, fontStyle: 'italic' },
   progressionText: { color: '#00eaff', fontSize: 13, marginBottom: 10, lineHeight: 18, fontStyle: 'italic' },
-  exRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  exRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 3 },
   regenBtn: { backgroundColor: '#232946', borderWidth: 1, borderColor: '#39ff14', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 14 },
   regenBtnText: { color: '#39ff14', fontWeight: 'bold', fontSize: 14 },
   resultGoal: {
@@ -338,16 +371,22 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   exerciseText: {
-    fontSize: 15,
+    flex: 1,
+    fontSize: 14,
     color: '#00eaff',
-    marginBottom: 5,
+    marginBottom: 3,
+    flexWrap: 'wrap',
+    paddingRight: 8,
     textShadowColor: '#ff00c8',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
   },
   repsText: {
     fontWeight: 'bold',
+    fontSize: 13,
     color: '#39ff14',
+    minWidth: 70,
+    textAlign: 'right',
     textShadowColor: '#fffb00',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
@@ -359,5 +398,7 @@ const styles = StyleSheet.create({
     textShadowColor: '#00eaff',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
-  }
+  },
+  editProfileBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: '#00eaff', backgroundColor: '#232946' },
+  editProfileText: { color: '#00eaff', fontWeight: 'bold', fontSize: 12 },
 });

@@ -17,20 +17,21 @@ const OBJETIVOS = [
   'Rehabilitación / Movilidad'
 ];
 
-export default function OnboardingScreen({ onComplete }) {
+export default function OnboardingScreen({ onComplete, initialData = null, onCancel = null }) {
+  const isEditing = !!initialData;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const [age, setAge] = useState('');
-  const [sex, setSex] = useState('');
-  const [activityLevel, setActivityLevel] = useState('');
-  const [weightKg, setWeightKg] = useState('');
-  const [heightCm, setHeightCm] = useState('');
-  const [waistCm, setWaistCm] = useState('');
-  const [neckCm, setNeckCm] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('');
-  const [goal, setGoal] = useState('');
-  const [injuries, setInjuries] = useState('');
+  const [age, setAge] = useState(initialData?.age?.toString() || '');
+  const [sex, setSex] = useState(initialData?.sex || '');
+  const [activityLevel, setActivityLevel] = useState(initialData?.activity_level || '');
+  const [weightKg, setWeightKg] = useState(initialData?.weight_kg?.toString() || '');
+  const [heightCm, setHeightCm] = useState(initialData?.height_cm?.toString() || '');
+  const [waistCm, setWaistCm] = useState(initialData?.waist_cm?.toString() || '');
+  const [neckCm, setNeckCm] = useState(initialData?.neck_cm?.toString() || '');
+  const [experienceLevel, setExperienceLevel] = useState(initialData?.experience_level || '');
+  const [goal, setGoal] = useState(initialData?.goal || '');
+  const [injuries, setInjuries] = useState(initialData?.injuries || '');
 
   const handleFinish = async () => {
     if (!age || !sex || !activityLevel || !weightKg || !heightCm || !experienceLevel || !goal) {
@@ -72,7 +73,14 @@ export default function OnboardingScreen({ onComplete }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>⚡ Powerbud</Text>
-      <Text style={styles.subtitle}>Configura tu perfil para recibir tu mesociclo de 6 semanas personalizado</Text>
+      <Text style={styles.subtitle}>
+        {isEditing ? 'Actualiza tu perfil para mejorar las recomendaciones de la IA' : 'Configura tu perfil para recibir tu mesociclo de 6 semanas personalizado'}
+      </Text>
+      {isEditing && onCancel && (
+        <TouchableOpacity style={styles.cancelTopBtn} onPress={onCancel}>
+          <Text style={styles.cancelTopBtnText}>✕ Cancelar</Text>
+        </TouchableOpacity>
+      )}
 
       {/* PASO 1: Datos físicos básicos */}
       {step === 1 && (
@@ -162,7 +170,7 @@ export default function OnboardingScreen({ onComplete }) {
               <Text style={styles.backBtnText}>← Atrás</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.finishBtn} onPress={handleFinish} disabled={loading}>
-              {loading ? <ActivityIndicator color="#18181b" /> : <Text style={styles.finishBtnText}>¡Comenzar! ⚡</Text>}
+              {loading ? <ActivityIndicator color="#18181b" /> : <Text style={styles.finishBtnText}>{isEditing ? '💾 Guardar cambios' : '¡Comenzar! ⚡'}</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -178,6 +186,8 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 15, color: '#00eaff', textAlign: 'center', marginTop: 10, marginBottom: 30, lineHeight: 22, textShadowColor: '#fffb00', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 4 },
   card: { backgroundColor: '#232946', borderRadius: 15, padding: 20, shadowColor: '#ff00c8', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
   cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#ff00c8', marginBottom: 20, textShadowColor: '#fffb00', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
+  cancelTopBtn: { alignSelf: 'flex-end', marginBottom: 10, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#ff00c8' },
+  cancelTopBtnText: { color: '#ff00c8', fontWeight: 'bold', fontSize: 13 },
   label: { fontSize: 14, fontWeight: '600', color: '#39ff14', marginBottom: 8, marginTop: 12, textShadowColor: '#ff00c8', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 },
   input: { backgroundColor: '#18181b', borderWidth: 1, borderColor: '#00eaff', borderRadius: 8, padding: 12, fontSize: 16, color: '#39ff14', marginBottom: 5 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 5 },

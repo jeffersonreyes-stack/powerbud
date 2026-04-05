@@ -80,7 +80,7 @@ router.get('/body-metrics', async (req, res) => {
 // 3. Log Body Metric (Registrar peso o medidas de hoy)
 router.post('/body-metrics', async (req, res) => {
     try {
-        const { date, weight_kg, height_cm, waist_cm, chest_cm, hips_cm, notes } = req.body;
+        const { date, weight_kg, height_cm, waist_cm, chest_cm, hips_cm, notes, sleep_hours, stress_level } = req.body;
         const userId = req.user.id;
 
         if (!date) {
@@ -93,16 +93,19 @@ router.post('/body-metrics', async (req, res) => {
         const waist = toNum(waist_cm);
         const chest = toNum(chest_cm);
         const hips = toNum(hips_cm);
+        const sleep = toNum(sleep_hours);
+        const stress = stress_level !== undefined && stress_level !== null && stress_level !== '' ? parseInt(stress_level, 10) : null;
 
         if (w !== null && (!Number.isFinite(w) || w <= 0)) return res.status(400).json({ error: 'Peso inválido' });
         if (h !== null && (!Number.isFinite(h) || h <= 0)) return res.status(400).json({ error: 'Altura inválida' });
+        if (stress !== null && (stress < 1 || stress > 5)) return res.status(400).json({ error: 'Estrés debe ser entre 1 y 5' });
 
         const sql = `
-            INSERT INTO body_metrics (user_id, date, weight_kg, height_cm, waist_cm, chest_cm, hips_cm, notes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO body_metrics (user_id, date, weight_kg, height_cm, waist_cm, chest_cm, hips_cm, notes, sleep_hours, stress_level)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *`;
 
-        const result = await pgDb.query(sql, [userId, date, w, h, waist, chest, hips, notes || null]);
+        const result = await pgDb.query(sql, [userId, date, w, h, waist, chest, hips, notes || null, sleep, stress]);
         res.status(201).json(result.rows[0]);
 
     } catch (err) {

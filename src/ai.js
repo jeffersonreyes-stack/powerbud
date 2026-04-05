@@ -53,7 +53,7 @@ const aiService = {
         HISTORIAL DE PROGRESO REAL DEL USUARIO:
         ${progressData.bodyMetrics && progressData.bodyMetrics.length > 0
           ? `Peso corporal (registros recientes más antiguo → más reciente):
-          ${progressData.bodyMetrics.map(m => `${m.date}: ${m.weight_kg} kg${m.notes ? ` (${m.notes})` : ''}`).join(' | ')}
+          ${progressData.bodyMetrics.map(m => `${m.date}: ${m.weight_kg} kg${m.sleep_hours ? ` | sueño: ${m.sleep_hours}h` : ''}${m.stress_level ? ` | estrés: ${m.stress_level}/5` : ''}${m.notes ? ` (${m.notes})` : ''}`).join(' | ')}
           Tendencia: ${progressData.bodyMetrics.length >= 2
             ? (progressData.bodyMetrics[progressData.bodyMetrics.length-1].weight_kg > progressData.bodyMetrics[0].weight_kg ? '⬆ Ganando peso' : '⬇ Bajando peso')
             : 'Datos insuficientes'}`
@@ -62,6 +62,13 @@ const aiService = {
           ? `Ejercicios con progreso registrado (máximo peso levantado y sesiones):
           ${progressData.exerciseProgress.map(e => `${e.exercise}: ${e.max_weight}kg máx, ${e.sessions} sesiones, último: ${e.last_date}`).join(' | ')}`
           : 'Sin historial de ejercicios aún.'}
+
+        TASA DE RECUPERACIÓN:
+        ACWR (Acute:Chronic Workload Ratio): ${progressData.recovery?.acwr !== null && progressData.recovery?.acwr !== undefined ? `${progressData.recovery.acwr} (zona: ${progressData.recovery.acwr_zone})` : 'sin datos'}
+        - Zona óptima: 0.8-1.3 | Precaución: 1.3-1.5 | Sobreentrenamiento: >1.5
+        Sueño promedio últimos 7 días: ${progressData.recovery?.avg_sleep ? `${progressData.recovery.avg_sleep}h (recomendado: 7-9h)` : 'sin datos'}
+        Nivel de estrés promedio: ${progressData.recovery?.avg_stress ? `${progressData.recovery.avg_stress}/5` : 'sin datos'}
+        IMPORTANTE: Si el ACWR está en zona de precaución o sobreentrenamiento, reduce el volumen total del mesociclo las primeras 2 semanas e incluye una semana de descarga (deload) en la semana 3. Si el sueño es menor a 7h, agrega notas específicas sobre la importancia del descanso y reduce la intensidad sugerida.
 
         IMPORTANTE: Usa el historial de progreso para adaptar la rutina. Si hay ejercicios ya dominados, aplica progresión desde el peso máximo registrado. Si hay lesiones en las notas de peso, tenlas en cuenta estrictamente.
 
@@ -151,7 +158,11 @@ ${workoutContext.recentLogs && workoutContext.recentLogs.length > 0
   ? `Registros reales de entrenamientos (últimas 3 semanas, más reciente primero):
 ${workoutContext.recentLogs.slice(0, 20).map(l => `  ${l.date} — ${l.exercise}: ${l.weight}kg x ${l.reps} reps (volumen: ${Math.round(l.volumen)})`).join('\n')}`
   : 'Sin registros de entrenamiento aún.'}
-IMPORTANTE: Usa el objetivo del mesociclo y los días de entrenamiento para calcular las necesidades calóricas y de macros correctamente. En días de entrenamiento de fuerza/hipertrofia, aumenta carbohidratos y proteína. Adapta la ingesta calórica según la intensidad registrada en los logs reales.
+
+TASA DE RECUPERACIÓN:
+ACWR: ${workoutContext.recovery?.acwr !== null && workoutContext.recovery?.acwr !== undefined ? `${workoutContext.recovery.acwr} (zona: ${workoutContext.recovery.acwr_zone})` : 'sin datos'}
+Sueño promedio: ${workoutContext.recovery?.avg_sleep ? `${workoutContext.recovery.avg_sleep}h` : 'sin datos'} | Estrés promedio: ${workoutContext.recovery?.avg_stress ? `${workoutContext.recovery.avg_stress}/5` : 'sin datos'}
+IMPORTANTE: Si el ACWR supera 1.3 o el sueño es menor a 7h, el usuario está en déficit de recuperación. En ese caso incrementa las calorías totales en un 8-12%, prioriza carbohidratos de fácil digestión post-entreno y agrega alimentos ricos en magnesio y triptofano (banano, leche, nueces) para mejorar la calidad del sueño.
 
 INSTRUCCIONES:
 1. Usa EXCLUSIVAMENTE alimentos comunes y accesibles en Colombia (arroz, frijoles, plátano, papa, aguacate, pollo, carne, huevos, leche, queso, frutas tropicales, etc.)
