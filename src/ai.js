@@ -17,7 +17,10 @@ const aiService = {
   async generateWorkoutPlan(clientProfile) {
     try {
       // Usamos el modelo más capaz para generación de texto complejo
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: { thinkingConfig: { thinkingBudget: 0 } }
+      });
 
       // Extraemos los datos del cliente para construir el prompt
       const {
@@ -95,7 +98,10 @@ const aiService = {
 
   async generateDietPlan(clientProfile, workoutSummary) {
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: { thinkingConfig: { thinkingBudget: 0 } }
+      });
 
       const {
         age, sex, weight_kg, height_cm, activity_level,
