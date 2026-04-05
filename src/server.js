@@ -194,6 +194,103 @@ app.use('/api/v2/relations', relationsRoutes);
 app.use('/api/v2/reviews', reviewsRoutes);
 app.use('/api/v2/upload', uploadRoutes);
 
+// -- DIETA: Generar plan con IA --
+app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const profileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [userId]);
+    const profile = profileRes.rows[0] || {};
+
+    // Obtener resumen del último workout generado
+    const workoutRes = await pgDb.query(
+      `SELECT exercise FROM workouts WHERE client_id = $1 ORDER BY date DESC LIMIT 10`,
+      [userId]
+    );
+    const workoutSummary = workoutRes.rows.length > 0
+      ? workoutRes.rows.map(r => r.exercise).join(', ')
+      : null;
+
+    const dietPlan = await aiService.generateDietPlan(profile, workoutSummary);
+
+    // Guardar en DB
+    await pgDb.query(
+      'INSERT INTO diet_plans (user_id, plan_json) VALUES ($1, $2)',
+      [userId, JSON.stringify(dietPlan)]
+    );
+
+    res.json(dietPlan);
+  } catch (error) {
+    console.error('Error generando dieta:', error);
+    res.status(500).json({ error: 'No se pudo generar el plan de dieta.' });
+  }
+});
+
+// -- DIETA: Obtener último plan --
+app.get('/api/v2/diet/plan', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pgDb.query(
+      'SELECT plan_json FROM diet_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+    if (result.rows.length === 0) return res.json(null);
+    res.json(result.rows[0].plan_json);
+  } catch (error) {
+    res.status(500).json({ error: 'Error obteniendo plan de dieta.' });
+  }
+});
+
+// -- MEAL LOGS: Obtener registros del día --
+app.get('/api/v2/diet/meals', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const result = await pgDb.query(
+      'SELECT * FROM meal_logs WHERE user_id = $1 AND log_date = $2 ORDER BY created_at ASC',
+      [userId, date]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Error obteniendo comidas.' });
+  }
+});
+
+// -- MEAL LOGS: Registrar comida --
+app.post('/api/v2/diet/meals', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { meal_name, calories, protein_g, carbs_g, fat_g } = req.body;
+    if (!meal_name) return res.status(400).json({ error: 'Nombre de comida requerido.' });
+
+    const calVal = Number(calories) || 0;
+    const protVal = Number(protein_g) || 0;
+    const carbVal = Number(carbs_g) || 0;
+    const fatVal = Number(fat_g) || 0;
+
+    const result = await pgDb.query(
+      `INSERT INTO meal_logs (user_id, meal_name, calories, protein_g, carbs_g, fat_g)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [userId, meal_name, calVal, protVal, carbVal, fatVal]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Error registrando comida.' });
+  }
+});
+
+// -- MEAL LOGS: Eliminar comida --
+app.delete('/api/v2/diet/meals/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const mealId = Number(req.params.id);
+    if (!Number.isInteger(mealId) || mealId <= 0) return res.status(400).json({ error: 'ID inválido.' });
+    await pgDb.query('DELETE FROM meal_logs WHERE id = $1 AND user_id = $2', [mealId, userId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error eliminando comida.' });
+  }
+});
+
 // -- EJEMPLO RUTA DE ENTRENADOR --
 // Solo entrenadores pueden listar todos sus clientes
 app.get('/api/trainer/clients', authenticateToken, requireRole('trainer'), async (req, res) => {

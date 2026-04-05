@@ -91,6 +91,79 @@ const aiService = {
       console.error('Error al generar la rutina con la IA de Gemini:', error);
       throw new Error('No se pudo generar la rutina de entrenamiento. Inténtalo de nuevo más tarde.');
     }
+  },
+
+  async generateDietPlan(clientProfile, workoutSummary) {
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const {
+        age, sex, weight_kg, height_cm, activity_level,
+        goal, experience_level, injuries
+      } = clientProfile;
+
+      const prompt = `
+Eres un nutricionista deportivo experto en alimentación colombiana. Crea un plan de dieta semanal personalizado basado en el siguiente perfil:
+
+PERFIL DEL ATLETA:
+- Edad: ${age || 'No especificada'}
+- Sexo: ${sex || 'No especificado'}
+- Peso: ${weight_kg || 'No especificado'} kg
+- Altura: ${height_cm || 'No especificada'} cm
+- Nivel de actividad: ${activity_level || 'Moderado'}
+- Objetivo principal: ${goal || 'Mejorar condición física'}
+- Nivel de experiencia: ${experience_level || 'Intermedio'}
+- Lesiones/limitaciones: ${injuries || 'Ninguna'}
+
+RUTINA ACTUAL:
+${workoutSummary || 'Entrenamiento de fuerza e hipertrofia 4 días/semana'}
+
+INSTRUCCIONES:
+1. Usa EXCLUSIVAMENTE alimentos comunes y accesibles en Colombia (arroz, frijoles, plátano, papa, aguacate, pollo, carne, huevos, leche, queso, frutas tropicales, etc.)
+2. Calcula los macros diarios según el objetivo y el peso corporal
+3. Distribuye las comidas en 5 tiempos: desayuno, media mañana, almuerzo, merienda, cena
+4. Especifica porciones en gramos o unidades prácticas
+5. Incluye opciones económicas y fáciles de preparar
+6. Los macros deben ser REALISTAS y alcanzables
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin bloques de código markdown:
+{
+  "daily_targets": {
+    "calories": 2200,
+    "protein_g": 150,
+    "carbs_g": 250,
+    "fat_g": 70
+  },
+  "weekly_plan": [
+    {
+      "day": "Lunes",
+      "meals": [
+        {
+          "time": "Desayuno",
+          "foods": ["2 huevos revueltos", "2 arepas de maíz", "1 taza de café con leche"],
+          "calories": 450,
+          "protein_g": 28,
+          "carbs_g": 45,
+          "fat_g": 15
+        }
+      ],
+      "day_totals": { "calories": 2200, "protein_g": 150, "carbs_g": 250, "fat_g": 70 }
+    }
+  ],
+  "shopping_tips": "Consejos de compra económica en Colombia...",
+  "general_advice": "Consejos generales de nutrición para el objetivo..."
+}
+`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+      const cleanJsonStr = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      return JSON.parse(cleanJsonStr);
+
+    } catch (error) {
+      console.error('Error al generar el plan de dieta con Gemini:', error);
+      throw new Error('No se pudo generar el plan de dieta. Inténtalo de nuevo más tarde.');
+    }
   }
 };
 

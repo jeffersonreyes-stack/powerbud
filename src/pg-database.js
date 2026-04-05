@@ -132,6 +132,31 @@ async function initDb() {
       )
     `);
 
+    // Tabla de Planes de Dieta generados por IA
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS diet_plans (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        plan_json JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabla de Registro de Comidas del día
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meal_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        log_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        meal_name VARCHAR(255) NOT NULL,
+        calories REAL DEFAULT 0,
+        protein_g REAL DEFAULT 0,
+        carbs_g REAL DEFAULT 0,
+        fat_g REAL DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Tabla de Calificaciones y Reseñas de Entrenadores (Reviews)
     await client.query(`
       CREATE TABLE IF NOT EXISTS trainer_reviews (
