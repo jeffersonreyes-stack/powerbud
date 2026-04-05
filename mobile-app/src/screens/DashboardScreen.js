@@ -97,7 +97,11 @@ export default function DashboardScreen({ setIsAuthenticated }) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
       <View style={styles.header}>
-        <Text style={styles.greeting}>Hola, {user?.role === 'trainer' ? 'Entrenador' : 'Atleta'}</Text>
+        <Text style={styles.greeting}>
+          {user?.name
+            ? `Hola, ${user.name.split(' ')[0]} 👋`
+            : `Hola, ${user?.role === 'trainer' ? 'Entrenador' : user?.role === 'nutritionist' ? 'Nutricionista' : 'Atleta'} 👋`}
+        </Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {user?.role === 'client' && (
             <TouchableOpacity onPress={() => setShowEditProfile(true)} style={styles.editProfileBtn}>

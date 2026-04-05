@@ -3,13 +3,14 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import api from '../api';
 
 export default function RegisterScreen({ navigation }) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('client'); // Por defecto es cliente normal
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!email || !password) {
+    if (!name.trim() || !email || !password) {
       Alert.alert('Error', 'Por favor llena todos los campos.');
       return;
     }
@@ -17,7 +18,7 @@ export default function RegisterScreen({ navigation }) {
     setLoading(true);
     try {
       // Registrar en PostgreSQL
-      await api.post('/auth/register', { email, password, role });
+      await api.post('/auth/register', { name: name.trim(), email, password, role });
 
       Alert.alert(
         '¡Bienvenido a Powerbud!',
@@ -50,11 +51,25 @@ export default function RegisterScreen({ navigation }) {
           style={[styles.roleButton, role === 'trainer' && styles.roleActive]}
           onPress={() => setRole('trainer')}
         >
-          <Text style={[styles.roleText, role === 'trainer' && styles.roleTextActive]}>Soy Entrenador</Text>
+          <Text style={[styles.roleText, role === 'trainer' && styles.roleTextActive]}>Entrenador</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.roleButton, role === 'nutritionist' && styles.roleActive]}
+          onPress={() => setRole('nutritionist')}
+        >
+          <Text style={[styles.roleText, role === 'nutritionist' && styles.roleTextActive]}>Nutricionista</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.card}>
+        <TextInput
+          style={styles.input}
+          placeholder="Tu nombre"
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+        />
         <TextInput
           style={styles.input}
           placeholder="Tu mejor correo electrónico"

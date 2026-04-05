@@ -21,18 +21,21 @@ async function initDb() {
     // Comenzamos transacción para las tablas base
     await client.query('BEGIN');
 
-    // Tabla de Usuarios (Roles: admin, trainer, client)
+    // Tabla de Usuarios (Roles: admin, trainer, client, nutritionist)
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(50) NOT NULL CHECK (role IN ('trainer', 'client', 'admin')),
-        verification_status VARCHAR(50) DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'pending', 'verified')), -- Para el certificado de educacion
-        certificate_url VARCHAR(500), -- Donde se guardará la foto de su diploma en Supabase
+        role VARCHAR(50) NOT NULL DEFAULT 'client',
+        verification_status VARCHAR(50) DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'pending', 'verified')),
+        certificate_url VARCHAR(500),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // Permitir rol nutritionist en producción sin violar check antiguo
+    await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
+    await client.query(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('trainer', 'client', 'admin', 'nutritionist'))`);
 
     // Tabla de Relación (Entrenador -> Cliente)
     await client.query(`
@@ -184,6 +187,22 @@ async function initDb() {
         UNIQUE(trainer_id, client_id) -- Un cliente solo puede dejar una reseña por entrenador (puede actualizarla)
       )
     `);
+
+    // Tabla de Notificaciones
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        type VARCHAR(50) NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'trainer', 'nutritionist')),
+        title VARCHAR(255) NOT NULL,
+        body TEXT NOT NULL,
+        read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)`);
 
     await client.query('COMMIT');
     console.log('PostgreSQL database tables initialized successfully.');

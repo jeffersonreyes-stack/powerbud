@@ -32,14 +32,14 @@ function requireRole(role) {
 const authController = {
   // Registro de usuario (Entrenador o Cliente)
   async register(req, res) {
-    const { email, password, role } = req.body;
+    const { email, password, role, name } = req.body;
 
     if (!email || !password || !role) {
       return res.status(400).json({ error: 'Email, password y role son obligatorios' });
     }
 
-    if (!['trainer', 'client'].includes(role)) {
-      return res.status(400).json({ error: 'El rol debe ser trainer o client' });
+    if (!['trainer', 'client', 'nutritionist'].includes(role)) {
+      return res.status(400).json({ error: 'El rol debe ser trainer, client o nutritionist' });
     }
 
     try {
@@ -54,9 +54,10 @@ const authController = {
       const hashedPassword = await bcrypt.hash(password, saltRounds);
 
       // Guardar usuario
+      const trimmedName = typeof name === 'string' ? name.trim() : null;
       const result = await db.query(
-        'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id, email, role',
-        [email, hashedPassword, role]
+        'INSERT INTO users (email, password_hash, role, name) VALUES ($1, $2, $3, $4) RETURNING id, email, role, name',
+        [email, hashedPassword, role, trimmedName]
       );
 
       res.status(201).json({ message: 'Usuario creado exitosamente', user: result.rows[0] });
@@ -92,7 +93,7 @@ const authController = {
         { expiresIn: '7d' }
       );
 
-      res.json({ message: 'Inicio de sesión exitoso', token, user: { id: user.id, email: user.email, role: user.role } });
+      res.json({ message: 'Inicio de sesión exitoso', token, user: { id: user.id, email: user.email, role: user.role, name: user.name || null } });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Error del servidor al iniciar sesión' });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -19,6 +19,7 @@ import WorkoutScreen from './src/screens/WorkoutScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
 import ReviewScreen from './src/screens/ReviewScreen';
 import TrainerClientsScreen from './src/screens/TrainerClientsScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -26,6 +27,20 @@ const Tab = createBottomTabNavigator();
 // --- El Menú de Pestañas Inferiores ---
 function MainTabNavigator({ setIsAuthenticated, userRole }) {
   const insets = useSafeAreaInsets();
+
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await api.get('/v2/notifications/unread-count');
+        setUnreadCount(res.data.count || 0);
+      } catch { /* silencioso */ }
+    };
+    fetchUnread();
+    const t = setInterval(fetchUnread, 60000); // poll cada 60s
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -44,11 +59,22 @@ function MainTabNavigator({ setIsAuthenticated, userRole }) {
             iconName = focused ? 'star' : 'star-outline';
           } else if (route.name === 'Mis Clientes') {
             iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'Avisos') {
+            iconName = focused ? 'notifications' : 'notifications-outline';
           }
-          return <Ionicons name={iconName} size={size} color={color} style={{ textShadowColor: focused ? '#ff00c8' : undefined, textShadowRadius: focused ? 8 : 0 }} />;
+          return (
+            <View>
+              <Ionicons name={iconName} size={size} color={color} style={{ textShadowColor: focused ? '#ff00c8' : undefined, textShadowRadius: focused ? 8 : 0 }} />
+              {route.name === 'Avisos' && unreadCount > 0 && (
+                <View style={badgeStyle.dot}>
+                  <Text style={badgeStyle.dotText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </View>
+          );
         },
-        tabBarActiveTintColor: '#39ff14', // Neon green
-        tabBarInactiveTintColor: '#00eaff', // Neon blue
+        tabBarActiveTintColor: '#39ff14',
+        tabBarInactiveTintColor: '#00eaff',
         tabBarStyle: {
           backgroundColor: '#18181b',
           borderTopColor: '#ff00c8',
@@ -68,14 +94,16 @@ function MainTabNavigator({ setIsAuthenticated, userRole }) {
         },
       })}
     >
-      {/* Pasamos setIsAuthenticated al Dashboard para que pueda cerrar sesión */}
       <Tab.Screen name="Inicio">
         {props => <DashboardScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
       </Tab.Screen>
       <Tab.Screen name="Dieta" component={DietScreen} />
-      <Tab.Screen name="Rutina" component={WorkoutScreen} />
 
-      {/* Diferenciar Menú según Rol: Clientes ven Progreso/Reseñas, Entrenadores ven sus Clientes */}
+      {/* Nutricionistas solo ven Dieta y Mis Clientes */}
+      {userRole !== 'nutritionist' && (
+        <Tab.Screen name="Rutina" component={WorkoutScreen} />
+      )}
+
       {userRole === 'client' ? (
         <>
           <Tab.Screen name="Progreso" component={ProgressScreen} />
@@ -84,9 +112,25 @@ function MainTabNavigator({ setIsAuthenticated, userRole }) {
       ) : (
         <Tab.Screen name="Mis Clientes" component={TrainerClientsScreen} />
       )}
+
+      <Tab.Screen
+        name="Avisos"
+        component={NotificationsScreen}
+        listeners={{ tabPress: () => setUnreadCount(0) }}
+      />
     </Tab.Navigator>
   );
 }
+
+const badgeStyle = StyleSheet.create({
+  dot: {
+    position: 'absolute', top: -3, right: -6,
+    backgroundColor: '#ff00c8', borderRadius: 8,
+    minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  dotText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
+});
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

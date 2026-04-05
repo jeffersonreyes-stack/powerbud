@@ -1,6 +1,7 @@
 const express = require('express');
 const pgDb = require('../pg-database');
 const { authenticateToken, requireRole } = require('../auth');
+const { createNotification } = require('./notifications');
 
 const router = express.Router();
 
@@ -82,6 +83,22 @@ router.post('/', async (req, res) => {
             RETURNING *`;
 
         const result = await pgDb.query(sql, [clientIdToInsert, trainerIdToInsert, date, exercise, weight, reps]);
+
+        // Notificación automática cuando el entrenador asigna un ejercicio manualmente
+        if (req.user.role === 'trainer' && trainerIdToInsert) {
+            try {
+                const trainerRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [trainerIdToInsert]);
+                const trainerName = trainerRes.rows[0]?.name || trainerRes.rows[0]?.email || 'Tu entrenador';
+                await createNotification({
+                    userId: clientIdToInsert,
+                    senderId: trainerIdToInsert,
+                    type: 'trainer',
+                    title: '🏋️ Ejercicio asignado',
+                    body: `${trainerName} te asignó un nuevo ejercicio: ${exercise}. ¡A entrenar!`,
+                });
+            } catch (notifErr) { console.error('Error notif workout manual:', notifErr); }
+        }
+
         res.status(201).json(result.rows[0]);
 
     } catch (err) {
@@ -141,6 +158,21 @@ router.put('/:id', async (req, res) => {
         `;
 
         const result = await pgDb.query(sql, [date, exercise, weight, reps, modifiedByClientFlag, id]);
+
+        // Notificación cuando entrenador edita rutina del cliente
+        if (userRole === 'trainer') {
+            try {
+                const trainerRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+                const trainerName = trainerRes.rows[0]?.name || trainerRes.rows[0]?.email || 'Tu entrenador';
+                await createNotification({
+                    userId: workout.client_id,
+                    senderId: userId,
+                    type: 'trainer',
+                    title: '✏️ Rutina modificada',
+                    body: `${trainerName} modificó el ejercicio "${exercise}" en tu plan de entrenamiento.`,
+                });
+            } catch (notifErr) { console.error('Error notif workout edit:', notifErr); }
+        }
 
         res.json({
             success: true,

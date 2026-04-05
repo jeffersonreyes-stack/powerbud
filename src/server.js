@@ -9,6 +9,8 @@ const path = require('path');
 // RUTAS v2 (MIGRACIÓN A POSTGRESQL)
 const foodsRoutes = require('./routes/foods');
 const logsRoutes = require('./routes/logs');
+const notificationsRoutes = require('./routes/notifications');
+const { createNotification } = require('./routes/notifications');
 const metricsRoutes = require('./routes/metrics');
 const workoutsRoutes = require('./routes/workouts');
 const relationsRoutes = require('./routes/relations');
@@ -226,9 +228,24 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
       [saveToId, JSON.stringify(workoutPlan)]
     );
 
+    // Notificación automática si el entrenador generó la rutina para un cliente
+    if (req.user.role === 'trainer' && targetClientIdForTrainer) {
+      try {
+        const trainerRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+        const trainerName = trainerRes.rows[0]?.name || trainerRes.rows[0]?.email || 'Tu entrenador';
+        await createNotification({
+          userId: targetClientIdForTrainer,
+          senderId: userId,
+          type: 'trainer',
+          title: '🏋️ Nueva rutina asignada',
+          body: `${trainerName} ha generado y asignado una nueva rutina de entrenamiento personalizada para ti. ¡Revísala en la pestaña Rutinas!`,
+        });
+      } catch (notifErr) { console.error('Error notif workout:', notifErr); }
+    }
+
     res.json({
       success: true,
-      message: 'PowerBud A.I. ha generado tu rutina y la ha guardado en tu historial.',,
+      message: 'PowerBud A.I. ha generado tu rutina y la ha guardado en tu historial.',
       data: workoutPlan,
       profileUsed: clientProfile
     });
@@ -384,6 +401,7 @@ app.use('/api/v2/workouts', workoutsRoutes);
 app.use('/api/v2/relations', relationsRoutes);
 app.use('/api/v2/reviews', reviewsRoutes);
 app.use('/api/v2/upload', uploadRoutes);
+app.use('/api/v2/notifications', notificationsRoutes);
 
 // -- DIETA: Generar plan con IA --
 app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
@@ -467,6 +485,23 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       'INSERT INTO diet_plans (user_id, plan_json) VALUES ($1, $2)',
       [userId, JSON.stringify(dietPlan)]
     );
+
+    // Notificación automática al generar dieta (si viene de nutricionista / entrenador para un cliente)
+    const senderRole = req.user.role;
+    if ((senderRole === 'nutritionist' || senderRole === 'trainer') && req.body.client_id) {
+      try {
+        const senderRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+        const senderName = senderRes.rows[0]?.name || senderRes.rows[0]?.email || (senderRole === 'nutritionist' ? 'Tu nutricionista' : 'Tu entrenador');
+        const notifType = senderRole === 'nutritionist' ? 'nutritionist' : 'trainer';
+        await createNotification({
+          userId: req.body.client_id,
+          senderId: userId,
+          type: notifType,
+          title: '🥗 Nuevo plan de dieta asignado',
+          body: `${senderName} ha generado un plan de alimentación personalizado para ti. ¡Revísalo en la pestaña Dieta!`,
+        });
+      } catch (notifErr) { console.error('Error notif diet:', notifErr); }
+    }
 
     res.json(dietPlan);
   } catch (error) {
