@@ -17,7 +17,7 @@ const aiService = {
   async generateWorkoutPlan(clientProfile) {
     try {
       // Usamos el modelo más capaz para generación de texto complejo
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       // Extraemos los datos del cliente para construir el prompt
       const {
