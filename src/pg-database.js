@@ -54,11 +54,13 @@ async function initDb() {
       CREATE TABLE IF NOT EXISTS foods (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        calories INTEGER NOT NULL,
+        calories REAL NOT NULL,
         protein REAL NOT NULL,
         carbs REAL NOT NULL,
         fat REAL NOT NULL,
-        trainer_id INTEGER REFERENCES users(id) ON DELETE SET NULL -- Alimentos globales si es null
+        serving_g REAL DEFAULT 100,
+        serving_label VARCHAR(20) DEFAULT 'g',
+        trainer_id INTEGER REFERENCES users(id) ON DELETE SET NULL
       )
     `);
 
@@ -203,6 +205,73 @@ async function initDb() {
     `);
 
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)`);
+    await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g REAL DEFAULT 100`);
+    await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_label VARCHAR(20) DEFAULT 'g'`);
+
+    // ── Seed alimentos base (colombianos / latinos) ────────────────────────
+    const foodSeed = [
+      // Proteínas
+      { name: 'Pechuga de pollo', cal: 165, prot: 31,   carbs: 0,    fat: 3.6,  sg: 100, sl: 'g' },
+      { name: 'Muslo de pollo',   cal: 209, prot: 26,   carbs: 0,    fat: 11,   sg: 100, sl: 'g' },
+      { name: 'Carne de res magra', cal: 218, prot: 26, carbs: 0,    fat: 12,   sg: 100, sl: 'g' },
+      { name: 'Cerdo lomo',       cal: 143, prot: 26,   carbs: 0,    fat: 3.5,  sg: 100, sl: 'g' },
+      { name: 'Salmón',           cal: 208, prot: 20,   carbs: 0,    fat: 13,   sg: 100, sl: 'g' },
+      { name: 'Tilapia',          cal: 96,  prot: 20,   carbs: 0,    fat: 1.7,  sg: 100, sl: 'g' },
+      { name: 'Atún en lata',     cal: 116, prot: 25.5, carbs: 0,    fat: 0.8,  sg: 100, sl: 'g' },
+      { name: 'Huevo entero',     cal: 72,  prot: 6.3,  carbs: 0.4,  fat: 4.8,  sg: 1,   sl: 'und' },
+      { name: 'Clara de huevo',   cal: 17,  prot: 3.6,  carbs: 0.2,  fat: 0.1,  sg: 1,   sl: 'und' },
+      { name: 'Proteína en polvo', cal: 120, prot: 24,  carbs: 3,    fat: 1.5,  sg: 1,   sl: 'scoop' },
+      { name: 'Yogur griego',     cal: 59,  prot: 10,   carbs: 3.6,  fat: 0.4,  sg: 100, sl: 'g' },
+      { name: 'Requesón',         cal: 98,  prot: 11,   carbs: 3.4,  fat: 4.3,  sg: 100, sl: 'g' },
+      // Carbohidratos
+      { name: 'Arroz blanco cocido', cal: 130, prot: 2.7, carbs: 28, fat: 0.3,  sg: 100, sl: 'g' },
+      { name: 'Arroz integral cocido', cal: 111, prot: 2.6, carbs: 23, fat: 0.9, sg: 100, sl: 'g' },
+      { name: 'Avena en hojuelas', cal: 389, prot: 16.9, carbs: 66,  fat: 6.9,  sg: 100, sl: 'g' },
+      { name: 'Papa cocida',      cal: 87,  prot: 1.9,  carbs: 20,   fat: 0.1,  sg: 100, sl: 'g' },
+      { name: 'Batata / Camote',  cal: 86,  prot: 1.6,  carbs: 20,   fat: 0.1,  sg: 100, sl: 'g' },
+      { name: 'Yuca cocida',      cal: 160, prot: 1.4,  carbs: 38,   fat: 0.3,  sg: 100, sl: 'g' },
+      { name: 'Plátano maduro',   cal: 122, prot: 1.3,  carbs: 31.9, fat: 0.4,  sg: 100, sl: 'g' },
+      { name: 'Plátano verde',    cal: 116, prot: 1.0,  carbs: 31,   fat: 0.2,  sg: 100, sl: 'g' },
+      { name: 'Arepa de maíz',    cal: 180, prot: 4,    carbs: 36,   fat: 1.5,  sg: 1,   sl: 'und' },
+      { name: 'Pan integral',     cal: 75,  prot: 3.5,  carbs: 13,   fat: 1.1,  sg: 1,   sl: 'und' },
+      { name: 'Pan blanco',       cal: 80,  prot: 2.6,  carbs: 15,   fat: 1,    sg: 1,   sl: 'und' },
+      { name: 'Pasta cocida',     cal: 131, prot: 5,    carbs: 25,   fat: 1.1,  sg: 100, sl: 'g' },
+      { name: 'Maíz desgranado',  cal: 86,  prot: 3.2,  carbs: 19,   fat: 1.2,  sg: 100, sl: 'g' },
+      { name: 'Lentejas cocidas', cal: 116, prot: 9,    carbs: 20,   fat: 0.4,  sg: 100, sl: 'g' },
+      { name: 'Frijoles cocidos', cal: 127, prot: 8.7,  carbs: 22.8, fat: 0.5,  sg: 100, sl: 'g' },
+      { name: 'Garbanzo cocido',  cal: 164, prot: 8.9,  carbs: 27,   fat: 2.6,  sg: 100, sl: 'g' },
+      // Frutas
+      { name: 'Banano',           cal: 89,  prot: 1.1,  carbs: 23,   fat: 0.3,  sg: 1,   sl: 'und' },
+      { name: 'Manzana',          cal: 52,  prot: 0.3,  carbs: 14,   fat: 0.2,  sg: 100, sl: 'g' },
+      { name: 'Piña',             cal: 50,  prot: 0.5,  carbs: 13,   fat: 0.1,  sg: 100, sl: 'g' },
+      { name: 'Mango',            cal: 60,  prot: 0.8,  carbs: 15,   fat: 0.4,  sg: 100, sl: 'g' },
+      { name: 'Papaya',           cal: 43,  prot: 0.5,  carbs: 11,   fat: 0.3,  sg: 100, sl: 'g' },
+      // Grasas saludables
+      { name: 'Aguacate',         cal: 160, prot: 2,    carbs: 9,    fat: 15,   sg: 100, sl: 'g' },
+      { name: 'Almendras',        cal: 579, prot: 21,   carbs: 22,   fat: 50,   sg: 100, sl: 'g' },
+      { name: 'Maní / Cacahuete', cal: 567, prot: 25.8, carbs: 16,   fat: 49,   sg: 100, sl: 'g' },
+      { name: 'Mantequilla de maní', cal: 94, prot: 4,  carbs: 3,    fat: 8,    sg: 1,   sl: 'cda' },
+      { name: 'Aceite de oliva',  cal: 119, prot: 0,    carbs: 0,    fat: 13.5, sg: 1,   sl: 'cda' },
+      // Lácteos
+      { name: 'Leche entera',     cal: 61,  prot: 3.2,  carbs: 4.8,  fat: 3.3,  sg: 100, sl: 'ml' },
+      { name: 'Leche descremada', cal: 34,  prot: 3.4,  carbs: 5,    fat: 0.1,  sg: 100, sl: 'ml' },
+      { name: 'Queso fresco',     cal: 80,  prot: 5,    carbs: 1,    fat: 6,    sg: 30,  sl: 'g' },
+      // Verduras
+      { name: 'Brócoli',          cal: 34,  prot: 2.8,  carbs: 7,    fat: 0.4,  sg: 100, sl: 'g' },
+      { name: 'Espinaca',         cal: 23,  prot: 2.9,  carbs: 3.6,  fat: 0.4,  sg: 100, sl: 'g' },
+      { name: 'Lechuga',          cal: 15,  prot: 1.4,  carbs: 2.9,  fat: 0.2,  sg: 100, sl: 'g' },
+      { name: 'Zanahoria',        cal: 41,  prot: 0.9,  carbs: 10,   fat: 0.2,  sg: 100, sl: 'g' },
+      { name: 'Tomate',           cal: 18,  prot: 0.9,  carbs: 3.9,  fat: 0.2,  sg: 100, sl: 'g' },
+    ];
+    for (const f of foodSeed) {
+      const exists = await client.query(`SELECT id FROM foods WHERE LOWER(name)=LOWER($1) AND trainer_id IS NULL LIMIT 1`, [f.name]);
+      if (exists.rows.length === 0) {
+        await client.query(
+          `INSERT INTO foods (name, calories, protein, carbs, fat, serving_g, serving_label, trainer_id) VALUES ($1,$2,$3,$4,$5,$6,$7,NULL)`,
+          [f.name, f.cal, f.prot || 0, f.carbs, f.fat, f.sg, f.sl]
+        );
+      }
+    }
 
     await client.query('COMMIT');
     console.log('PostgreSQL database tables initialized successfully.');

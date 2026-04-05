@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList,
   ActivityIndicator, Modal, TextInput, Alert
 } from 'react-native';
 import api from '../api';
@@ -82,14 +82,24 @@ export default function DietScreen() {
   const [dailySummary, setDailySummary] = useState([]);
   const [loadingSummary, setLoadingSummary] = useState(true);
 
-  // Modal de registro
-  const [modalVisible, setModalVisible] = useState(false);
-  const [mealName, setMealName] = useState('');
-  const [mealCal, setMealCal] = useState('');
-  const [mealProt, setMealProt] = useState('');
-  const [mealCarbs, setMealCarbs] = useState('');
-  const [mealFat, setMealFat] = useState('');
-  const [savingMeal, setSavingMeal] = useState(false);
+  // ─ Food picker modal
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerResults, setPickerResults] = useState([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [selectedFood, setSelectedFood] = useState(null);
+  const [logQty, setLogQty] = useState('100');
+  const [loggingFood, setLoggingFood] = useState(false);
+
+  // ─ New food modal
+  const [newFoodVisible, setNewFoodVisible] = useState(false);
+  const [nfName, setNfName] = useState('');
+  const [nfCal, setNfCal] = useState('');
+  const [nfProt, setNfProt] = useState('');
+  const [nfCarbs, setNfCarbs] = useState('');
+  const [nfFat, setNfFat] = useState('');
+  const [nfServingG, setNfServingG] = useState('100');
+  const [savingFood, setSavingFood] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -136,25 +146,72 @@ export default function DietScreen() {
     }
   };
 
-  const handleSaveMeal = async () => {
-    if (!mealName.trim()) { Alert.alert('Falta el nombre de la comida'); return; }
-    setSavingMeal(true);
+  useEffect(() => {
+    if (pickerVisible && pickerResults.length === 0 && !pickerSearch) {
+      setPickerLoading(true);
+      api.get('/v2/foods').then(r => setPickerResults(r.data)).catch(() => {}).finally(() => setPickerLoading(false));
+    }
+  }, [pickerVisible]);
+
+  const searchFoods = async (q) => {
+    setPickerLoading(true);
+    try {
+      const url = q.trim() ? `/v2/foods?q=${encodeURIComponent(q)}` : '/v2/foods';
+      const res = await api.get(url);
+      setPickerResults(res.data);
+    } catch {} finally { setPickerLoading(false); }
+  };
+
+  const closePicker = () => {
+    setPickerVisible(false);
+    setPickerSearch('');
+    setPickerResults([]);
+    setSelectedFood(null);
+    setLogQty('100');
+  };
+
+  const logSelectedFood = async () => {
+    if (!selectedFood) return;
+    const servingG = selectedFood.serving_g || 100;
+    const ratio = (Number(logQty) || 0) / servingG;
+    const cal   = Math.round(selectedFood.calories * ratio);
+    const prot  = +((selectedFood.protein  || 0) * ratio).toFixed(1);
+    const carbs = +((selectedFood.carbs    || 0) * ratio).toFixed(1);
+    const fat   = +((selectedFood.fat      || 0) * ratio).toFixed(1);
+    setLoggingFood(true);
     try {
       const res = await api.post('/v2/diet/meals', {
-        meal_name: mealName.trim(),
-        calories: Number(mealCal) || 0,
-        protein_g: Number(mealProt) || 0,
-        carbs_g: Number(mealCarbs) || 0,
-        fat_g: Number(mealFat) || 0,
+        meal_name: `${selectedFood.name} · ${logQty}${selectedFood.serving_label || 'g'}`,
+        calories: cal, protein_g: prot, carbs_g: carbs, fat_g: fat,
       });
       setMeals(prev => [...prev, res.data]);
-      setModalVisible(false);
-      setMealName(''); setMealCal(''); setMealProt(''); setMealCarbs(''); setMealFat('');
-    } catch (e) {
-      Alert.alert('Error guardando comida');
-    } finally {
-      setSavingMeal(false);
+      closePicker();
+    } catch { Alert.alert('Error', 'No se pudo registrar'); }
+    finally { setLoggingFood(false); }
+  };
+
+  const saveNewFood = async () => {
+    if (!nfName.trim() || !nfCal || !nfProt || !nfCarbs || !nfFat) {
+      Alert.alert('Completa todos los campos'); return;
     }
+    setSavingFood(true);
+    try {
+      await api.post('/v2/foods', {
+        name: nfName.trim(),
+        calories: Number(nfCal), protein: Number(nfProt),
+        carbs: Number(nfCarbs),  fat: Number(nfFat),
+      });
+      const res = await api.post('/v2/diet/meals', {
+        meal_name: `${nfName.trim()} · ${nfServingG}g`,
+        calories: Number(nfCal), protein_g: Number(nfProt),
+        carbs_g: Number(nfCarbs), fat_g: Number(nfFat),
+      });
+      setMeals(prev => [...prev, res.data]);
+      setNewFoodVisible(false);
+      setNfName(''); setNfCal(''); setNfProt(''); setNfCarbs(''); setNfFat(''); setNfServingG('100');
+      Alert.alert('✅', 'Alimento creado y registrado.');
+    } catch (e) { Alert.alert('Error', e.response?.data?.error || 'No se pudo guardar'); }
+    finally { setSavingFood(false); }
   };
 
   const handleDeleteMeal = (id) => {
@@ -297,48 +354,151 @@ export default function DietScreen() {
 
       {/* FAB + para registrar comida (solo en tab hoy) */}
       {tab === 'hoy' && (
-        <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={styles.fab} onPress={() => setPickerVisible(true)}>
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
       )}
 
-      {/* Modal para registrar comida */}
-      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>🍽️ Registrar Comida</Text>
-            <Text style={styles.inputLabel}>Nombre *</Text>
-            <TextInput style={styles.input} placeholder="Ej: Almuerzo — arroz con pollo" placeholderTextColor="#555" value={mealName} onChangeText={setMealName} />
-            <View style={styles.row4}>
-              <View style={styles.inputHalf}>
-                <Text style={styles.inputLabel}>Calorías</Text>
-                <TextInput style={styles.input} placeholder="kcal" placeholderTextColor="#555" keyboardType="numeric" value={mealCal} onChangeText={setMealCal} />
-              </View>
-              <View style={styles.inputHalf}>
-                <Text style={styles.inputLabel}>Proteína (g)</Text>
-                <TextInput style={styles.input} placeholder="g" placeholderTextColor="#555" keyboardType="numeric" value={mealProt} onChangeText={setMealProt} />
-              </View>
-            </View>
-            <View style={styles.row4}>
-              <View style={styles.inputHalf}>
-                <Text style={styles.inputLabel}>Carbos (g)</Text>
-                <TextInput style={styles.input} placeholder="g" placeholderTextColor="#555" keyboardType="numeric" value={mealCarbs} onChangeText={setMealCarbs} />
-              </View>
-              <View style={styles.inputHalf}>
-                <Text style={styles.inputLabel}>Grasas (g)</Text>
-                <TextInput style={styles.input} placeholder="g" placeholderTextColor="#555" keyboardType="numeric" value={mealFat} onChangeText={setMealFat} />
-              </View>
-            </View>
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveMeal} disabled={savingMeal}>
-                {savingMeal ? <ActivityIndicator color="#18181b" /> : <Text style={styles.saveBtnText}>Guardar</Text>}
-              </TouchableOpacity>
-            </View>
+      {/* ─── Modal picker de alimentos ──────────────────────────────────── */}
+      <Modal visible={pickerVisible} animationType="slide" onRequestClose={closePicker}>
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>🍽️ Registrar comida</Text>
+            <TouchableOpacity onPress={closePicker}><Text style={styles.pickerClose}>✕</Text></TouchableOpacity>
           </View>
+
+          <TextInput
+            style={styles.pickerSearch}
+            placeholder="Buscar alimento..."
+            placeholderTextColor="#555"
+            value={pickerSearch}
+            onChangeText={t => { setPickerSearch(t); setSelectedFood(null); searchFoods(t); }}
+            autoFocus
+          />
+
+          {selectedFood ? (
+            <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+              <TouchableOpacity onPress={() => setSelectedFood(null)} style={{ marginBottom: 12 }}>
+                <Text style={{ color: '#00eaff', fontSize: 14 }}>← Volver a resultados</Text>
+              </TouchableOpacity>
+              <Text style={styles.foodDetailName}>{selectedFood.name}</Text>
+              <Text style={styles.foodDetailBase}>Macros por {selectedFood.serving_g || 100} {selectedFood.serving_label || 'g'}:</Text>
+              <View style={styles.macroRow}>
+                <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#fffb00'}]}>{selectedFood.calories}</Text><Text style={styles.macroKey}>kcal</Text></View>
+                <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#39ff14'}]}>{selectedFood.protein}g</Text><Text style={styles.macroKey}>prot</Text></View>
+                <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#00eaff'}]}>{selectedFood.carbs}g</Text><Text style={styles.macroKey}>carbs</Text></View>
+                <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#ff00c8'}]}>{selectedFood.fat}g</Text><Text style={styles.macroKey}>grasas</Text></View>
+              </View>
+
+              <Text style={styles.inputLabel}>Cantidad ({selectedFood.serving_label || 'g'})</Text>
+              <TextInput
+                style={styles.input}
+                value={logQty}
+                onChangeText={setLogQty}
+                keyboardType="decimal-pad"
+                placeholder={String(selectedFood.serving_g || 100)}
+                placeholderTextColor="#555"
+              />
+
+              {(() => {
+                const ratio = (Number(logQty) || 0) / (selectedFood.serving_g || 100);
+                return (
+                  <View style={styles.calcBox}>
+                    <Text style={styles.calcTitle}>Macros calculados para {logQty || 0} {selectedFood.serving_label || 'g'}:</Text>
+                    <View style={styles.macroRow}>
+                      <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#fffb00'}]}>{Math.round(selectedFood.calories*ratio)}</Text><Text style={styles.macroKey}>kcal</Text></View>
+                      <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#39ff14'}]}>{((selectedFood.protein||0)*ratio).toFixed(1)}g</Text><Text style={styles.macroKey}>prot</Text></View>
+                      <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#00eaff'}]}>{((selectedFood.carbs||0)*ratio).toFixed(1)}g</Text><Text style={styles.macroKey}>carbs</Text></View>
+                      <View style={styles.macroChip}><Text style={[styles.macroVal,{color:'#ff00c8'}]}>{((selectedFood.fat||0)*ratio).toFixed(1)}g</Text><Text style={styles.macroKey}>grasas</Text></View>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              <TouchableOpacity style={[styles.saveBtn, { marginTop: 16 }]} onPress={logSelectedFood} disabled={loggingFood}>
+                {loggingFood ? <ActivityIndicator color="#18181b" /> : <Text style={styles.saveBtnText}>✅ Registrar</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          ) : (
+            <View style={{ flex: 1 }}>
+              {pickerLoading
+                ? <ActivityIndicator size="large" color="#ff00c8" style={{ marginTop: 40 }} />
+                : (
+                  <FlatList
+                    data={pickerResults}
+                    keyExtractor={item => item.id.toString()}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity style={styles.pickerItem} onPress={() => { setSelectedFood(item); setLogQty(String(item.serving_g || 100)); }}>
+                        <Text style={styles.pickerItemName}>{item.name}</Text>
+                        <Text style={styles.pickerItemMacros}>
+                          {item.calories} kcal · {item.protein}g prot · {item.carbs}g carbs · {item.fat}g grasas
+                          {item.serving_g ? `  (por ${item.serving_g}${item.serving_label || 'g'})` : ''}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={
+                      <Text style={styles.pickerEmpty}>
+                        {pickerSearch ? `Sin resultados para "${pickerSearch}"` : 'Cargando alimentos...'}
+                      </Text>
+                    }
+                    contentContainerStyle={{ paddingBottom: 80 }}
+                    keyboardShouldPersistTaps="handled"
+                    initialNumToRender={15}
+                  />
+                )
+              }
+              <TouchableOpacity style={styles.newFoodBtn} onPress={() => { closePicker(); setNewFoodVisible(true); }}>
+                <Text style={styles.newFoodBtnText}>➕ Agregar alimento nuevo</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
+      </Modal>
+
+      {/* ─── Modal nuevo alimento ─────────────────────────────────────── */}
+      <Modal visible={newFoodVisible} animationType="slide" onRequestClose={() => setNewFoodVisible(false)}>
+        <ScrollView style={styles.pickerContainer} keyboardShouldPersistTaps="handled">
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>➕ Nuevo alimento</Text>
+            <TouchableOpacity onPress={() => setNewFoodVisible(false)}><Text style={styles.pickerClose}>✕</Text></TouchableOpacity>
+          </View>
+          <View style={{ padding: 20 }}>
+            <Text style={styles.inputLabel}>Nombre del alimento *</Text>
+            <TextInput style={styles.input} value={nfName} onChangeText={setNfName} placeholder="Ej: Arepa de choclo" placeholderTextColor="#555" />
+
+            <Text style={styles.inputLabel}>Porción de referencia (g)</Text>
+            <TextInput style={styles.input} value={nfServingG} onChangeText={setNfServingG} keyboardType="numeric" placeholder="100" placeholderTextColor="#555" />
+
+            <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>Macros por {nfServingG || 100}g</Text>
+            <View style={styles.row4}>
+              <View style={styles.inputHalf}>
+                <Text style={styles.inputLabel}>Calorías (kcal) *</Text>
+                <TextInput style={styles.input} value={nfCal} onChangeText={setNfCal} keyboardType="numeric" placeholder="0" placeholderTextColor="#555" />
+              </View>
+              <View style={styles.inputHalf}>
+                <Text style={styles.inputLabel}>Proteína (g) *</Text>
+                <TextInput style={styles.input} value={nfProt} onChangeText={setNfProt} keyboardType="numeric" placeholder="0" placeholderTextColor="#555" />
+              </View>
+            </View>
+            <View style={styles.row4}>
+              <View style={styles.inputHalf}>
+                <Text style={styles.inputLabel}>Carbos (g) *</Text>
+                <TextInput style={styles.input} value={nfCarbs} onChangeText={setNfCarbs} keyboardType="numeric" placeholder="0" placeholderTextColor="#555" />
+              </View>
+              <View style={styles.inputHalf}>
+                <Text style={styles.inputLabel}>Grasas (g) *</Text>
+                <TextInput style={styles.input} value={nfFat} onChangeText={setNfFat} keyboardType="numeric" placeholder="0" placeholderTextColor="#555" />
+              </View>
+            </View>
+
+            <TouchableOpacity style={[styles.saveBtn, { marginTop: 24 }]} onPress={saveNewFood} disabled={savingFood}>
+              {savingFood ? <ActivityIndicator color="#18181b" /> : <Text style={styles.saveBtnText}>💾 Crear y registrar</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cancelBtn, { marginTop: 10, marginBottom: 40 }]} onPress={() => setNewFoodVisible(false)}>
+              <Text style={styles.cancelBtnText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </Modal>
     </View>
   );
@@ -392,5 +552,37 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: '#00eaff', fontWeight: 'bold' },
   saveBtn: { flex: 1, backgroundColor: '#39ff14', borderRadius: 10, paddingVertical: 14, alignItems: 'center', shadowColor: '#39ff14', shadowOpacity: 0.5, shadowRadius: 8 },
   saveBtnText: { color: '#18181b', fontWeight: 'bold', fontSize: 15 },
+  // Food picker
+  pickerContainer: { flex: 1, backgroundColor: '#18181b' },
+  pickerHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 20, paddingTop: 55, backgroundColor: '#232946',
+    borderBottomColor: '#ff00c8', borderBottomWidth: 1,
+  },
+  pickerTitle: { fontSize: 20, fontWeight: 'bold', color: '#39ff14' },
+  pickerClose: { fontSize: 24, color: '#ff00c8', fontWeight: 'bold', paddingHorizontal: 6 },
+  pickerSearch: {
+    margin: 15, backgroundColor: '#232946', borderWidth: 1,
+    borderColor: '#00eaff', borderRadius: 10, padding: 13,
+    color: '#39ff14', fontSize: 15,
+  },
+  pickerItem: { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#232946' },
+  pickerItemName: { color: '#e0e0e0', fontSize: 15, fontWeight: '600' },
+  pickerItemMacros: { color: '#666', fontSize: 12, marginTop: 2 },
+  pickerEmpty: { textAlign: 'center', color: '#555', marginTop: 40, fontSize: 15 },
+  newFoodBtn: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#232946', padding: 18, borderTopWidth: 1,
+    borderTopColor: '#ff00c8', alignItems: 'center',
+  },
+  newFoodBtnText: { color: '#ff00c8', fontWeight: 'bold', fontSize: 15 },
+  foodDetailName: { fontSize: 18, fontWeight: 'bold', color: '#ff00c8', marginBottom: 4 },
+  foodDetailBase: { color: '#666', fontSize: 12, marginBottom: 12 },
+  macroRow: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
+  macroChip: { backgroundColor: '#232946', borderRadius: 10, padding: 10, alignItems: 'center', minWidth: 72 },
+  macroVal: { fontSize: 15, fontWeight: 'bold' },
+  macroKey: { color: '#666', fontSize: 11, marginTop: 2 },
+  calcBox: { backgroundColor: '#1a1a2e', borderRadius: 10, padding: 12, marginVertical: 8 },
+  calcTitle: { color: '#00eaff', fontSize: 12, fontWeight: '600', marginBottom: 8 },
 });
 
