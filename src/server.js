@@ -170,6 +170,13 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
     }
 
     // Devolvemos el JSON estructurado
+    // Guardar el plan JSON completo para recuperarlo después
+    const saveToId = req.user.role === 'trainer' ? targetClientIdForTrainer : userId;
+    await pgDb.query(
+      'INSERT INTO workout_plans (user_id, plan_json) VALUES ($1, $2)',
+      [saveToId, JSON.stringify(workoutPlan)]
+    );
+
     res.json({
       success: true,
       message: 'El Entrenador Virtual ha generado tu rutina y la ha guardado en tu historial.',
@@ -183,6 +190,52 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
   }
 });
 
+// Obtener el último plan de rutina guardado
+app.get('/api/v2/ai/workout-plan', authenticateToken, async (req, res) => {
+  try {
+    const result = await pgDb.query(
+      'SELECT plan_json, created_at FROM workout_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [req.user.id]
+    );
+    if (result.rows.length === 0) return res.json(null);
+    res.json({ ...result.rows[0].plan_json, saved_at: result.rows[0].created_at });
+  } catch (error) {
+    res.status(500).json({ error: 'Error obteniendo plan de rutina.' });
+  }
+});
+
+// Progreso por ejercicio: lista de ejercicios únicos registrados
+app.get('/api/v2/progress/exercises', authenticateToken, async (req, res) => {
+  try {
+    const result = await pgDb.query(
+      `SELECT DISTINCT exercise, COUNT(*) as sessions,
+        MAX(weight) as max_weight, MAX(date) as last_date
+       FROM workouts WHERE client_id = $1
+       GROUP BY exercise ORDER BY last_date DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Error obteniendo ejercicios.' });
+  }
+});
+
+// Progreso por ejercicio: historial de un ejercicio específico (para tabla/gráfica)
+app.get('/api/v2/progress/exercise-history', authenticateToken, async (req, res) => {
+  try {
+    const { exercise } = req.query;
+    if (!exercise) return res.status(400).json({ error: 'Falta el parámetro exercise.' });
+    const result = await pgDb.query(
+      `SELECT date, weight, reps, (weight * reps) as volumen
+       FROM workouts WHERE client_id = $1 AND exercise ILIKE $2
+       ORDER BY date ASC`,
+      [req.user.id, `%${exercise}%`]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Error obteniendo historial de ejercicio.' });
+  }
+});
 
 // -- RUTAS v2 (PostgreSQL) --
 // Registramos las rutas migradas bajo el prefijo /api/v2/
@@ -230,11 +283,11 @@ app.get('/api/v2/diet/plan', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const result = await pgDb.query(
-      'SELECT plan_json FROM diet_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      'SELECT plan_json, created_at FROM diet_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
       [userId]
     );
     if (result.rows.length === 0) return res.json(null);
-    res.json(result.rows[0].plan_json);
+    res.json({ ...result.rows[0].plan_json, saved_at: result.rows[0].created_at });
   } catch (error) {
     res.status(500).json({ error: 'Error obteniendo plan de dieta.' });
   }

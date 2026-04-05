@@ -132,6 +132,16 @@ async function initDb() {
       )
     `);
 
+    // Tabla de Planes de Rutina generados por IA (JSON completo)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS workout_plans (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        plan_json JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Tabla de Planes de Dieta generados por IA
     await client.query(`
       CREATE TABLE IF NOT EXISTS diet_plans (

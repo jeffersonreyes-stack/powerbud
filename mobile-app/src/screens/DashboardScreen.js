@@ -7,9 +7,10 @@ export default function DashboardScreen({ setIsAuthenticated }) {
   const [user, setUser] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [aiWorkout, setAiWorkout] = useState(null);
+  const [loadingPlan, setLoadingPlan] = useState(true);
   const [invitations, setInvitations] = useState([]);
 
-  // Al cargar, recuperar información del usuario de la bóveda
+  // Al cargar, recuperar información del usuario y el plan guardado
   useEffect(() => {
     const fetchUser = async () => {
       const userInfo = await AsyncStorage.getItem('userInfo');
@@ -18,11 +19,25 @@ export default function DashboardScreen({ setIsAuthenticated }) {
         setUser(parsedUser);
         if (parsedUser.role === 'client') {
           fetchInvitations();
+          fetchSavedPlan();
+        } else {
+          setLoadingPlan(false);
         }
       }
     };
     fetchUser();
   }, []);
+
+  const fetchSavedPlan = async () => {
+    try {
+      const res = await api.get('/v2/ai/workout-plan');
+      if (res.data) setAiWorkout(res.data);
+    } catch (e) {
+      console.error('Error cargando plan guardado', e);
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
 
   const fetchInvitations = async () => {
     try {
@@ -52,19 +67,15 @@ export default function DashboardScreen({ setIsAuthenticated }) {
   // ¡EL BOTÓN MÁGICO! Llama a Google Gemini en el Backend sin chats ni fricción
   const generateMagicWorkout = async () => {
     setLoadingAI(true);
-    setAiWorkout(null);
     try {
-      // El backend de Powerbud ya sabe quiénes somos por el JWT (nuestro ID)
-      // Él irá a PostgreSQL a buscar nuestro peso, metas y se lo mandará a Gemini.
       const response = await api.post('/v2/ai/generate-workout');
-
-      // Obtenemos el JSON estructurado devuelto por la Inteligencia Artificial
-      setAiWorkout(response.data.data);
-      Alert.alert('Éxito', response.data.message);
-
+      // El plan viene dentro de data.data
+      const plan = response.data.data;
+      setAiWorkout(plan);
+      Alert.alert('✅ ¡Rutina generada!', 'Tu mesociclo de 6 semanas está listo y guardado.');
     } catch (error) {
       console.error('Error IA:', error.response?.data || error.message);
-      Alert.alert('Ouch', 'La IA no pudo generar tu rutina. Intenta de nuevo más tarde.');
+      Alert.alert('Error', 'La IA no pudo generar tu rutina. Verifica tu perfil e inténtalo de nuevo.');
     } finally {
       setLoadingAI(false);
     }
@@ -131,26 +142,43 @@ export default function DashboardScreen({ setIsAuthenticated }) {
         </View>
       )}
 
-      {/* Mostrar el resultado del JSON estructurado de la IA de forma bonita */}
-      {aiWorkout && (
+      {/* Plan de rutina - cargado desde DB o recién generado */}
+      {loadingPlan ? (
+        <ActivityIndicator color="#39ff14" style={{ marginTop: 20 }} />
+      ) : aiWorkout ? (
         <View style={styles.resultCard}>
-          <Text style={styles.resultGoal}>Objetivo: {aiWorkout.workout_plan?.goal}</Text>
+          <View style={styles.planHeader}>
+            <Text style={styles.resultGoal}>🎯 {aiWorkout.workout_plan?.goal}</Text>
+            <Text style={styles.planWeeks}>📅 {aiWorkout.workout_plan?.duration_weeks || 6} semanas</Text>
+          </View>
+          {aiWorkout.saved_at && (
+            <Text style={styles.savedAt}>Generado: {new Date(aiWorkout.saved_at).toLocaleDateString('es-CO')}</Text>
+          )}
+          {aiWorkout.workout_plan?.progression_notes && (
+            <Text style={styles.progressionText}>📈 {aiWorkout.workout_plan.progression_notes}</Text>
+          )}
 
           {aiWorkout.workout_plan?.days?.map((day, index) => (
             <View key={index} style={styles.dayBox}>
               <Text style={styles.dayTitle}>Día {day.day_number}: {day.focus}</Text>
-
               {day.exercises?.map((ex, i) => (
-                <Text key={i} style={styles.exerciseText}>
-                  • {ex.name}  <Text style={styles.repsText}>({ex.sets} sets x {ex.reps})</Text>
-                </Text>
+                <View key={i} style={styles.exRow}>
+                  <Text style={styles.exerciseText}>• {ex.name}</Text>
+                  <Text style={styles.repsText}>{ex.sets} × {ex.reps}</Text>
+                </View>
               ))}
             </View>
           ))}
 
           <Text style={styles.adviceText}>💡 {aiWorkout.general_advice}</Text>
+
+          <TouchableOpacity style={styles.regenBtn} onPress={generateMagicWorkout} disabled={loadingAI}>
+            {loadingAI
+              ? <ActivityIndicator color="#18181b" />
+              : <Text style={styles.regenBtnText}>🔄 Regenerar Rutina</Text>}
+          </TouchableOpacity>
         </View>
-      )}
+      ) : null}
 
     </ScrollView>
   );
@@ -159,11 +187,11 @@ export default function DashboardScreen({ setIsAuthenticated }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#18181b', // Cyberpunk dark
   },
   content: {
     padding: 20,
-    paddingTop: 60, // Safe area (notch) manual para la demo
+    paddingTop: 60,
   },
   header: {
     flexDirection: 'row',
@@ -174,110 +202,162 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#39ff14', // Neon green
+    textShadowColor: '#00eaff',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   logoutBtn: {
     padding: 8,
-    backgroundColor: '#ffebeb',
+    backgroundColor: '#ff00c8', // Neon pink
     borderRadius: 8,
+    shadowColor: '#ff00c8',
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
+    elevation: 4,
   },
   logoutText: {
-    color: '#d9534f',
+    color: '#fff',
     fontWeight: 'bold',
+    textShadowColor: '#fffb00',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   emailText: {
     fontSize: 16,
-    color: '#888',
+    color: '#00eaff', // Neon blue
     marginBottom: 30,
+    textShadowColor: '#39ff14',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   },
-  invitationCard: { backgroundColor: '#fff3cd', padding: 15, borderRadius: 10, marginBottom: 20, borderWidth: 1, borderColor: '#ffeeba' },
-  invitationTitle: { fontSize: 16, fontWeight: 'bold', color: '#856404', marginBottom: 10 },
+  invitationCard: { backgroundColor: '#1a1a2e', padding: 15, borderRadius: 10, marginBottom: 20, borderWidth: 1, borderColor: '#fffb00', shadowColor: '#fffb00', shadowOpacity: 0.2, shadowRadius: 10, elevation: 2 },
+  invitationTitle: { fontSize: 16, fontWeight: 'bold', color: '#fffb00', marginBottom: 10, textShadowColor: '#ff00c8', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
   invitationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  invitationEmail: { fontSize: 14, color: '#333', flex: 1 },
+  invitationEmail: { fontSize: 14, color: '#00eaff', flex: 1, textShadowColor: '#ff00c8', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 4 },
   invitationActions: { flexDirection: 'row' },
-  invBtn: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 5, marginLeft: 10 },
-  invBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  trainerWelcomeCard: { backgroundColor: '#fff', borderRadius: 15, padding: 20, borderLeftWidth: 4, borderLeftColor: '#34495e', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
+  invBtn: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 5, marginLeft: 10, shadowColor: '#39ff14', shadowOpacity: 0.5, shadowRadius: 8, elevation: 2 },
+  invBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12, textShadowColor: '#00eaff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 4 },
+  trainerWelcomeCard: { backgroundColor: '#232946', borderRadius: 15, padding: 20, borderLeftWidth: 4, borderLeftColor: '#00eaff', shadowColor: '#00eaff', shadowOpacity: 0.2, shadowRadius: 10, elevation: 3 },
   aiCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#232946',
     borderRadius: 15,
     padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowColor: '#ff00c8',
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 3,
     marginBottom: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#9b59b6', // Púrpura IA
+    borderLeftColor: '#ff00c8', // Neon pink
   },
   cardTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#39ff14',
     marginBottom: 10,
+    textShadowColor: '#ff00c8',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   cardDesc: {
     fontSize: 15,
-    color: '#666',
+    color: '#00eaff',
     lineHeight: 22,
     marginBottom: 20,
+    textShadowColor: '#fffb00',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   },
   magicButton: {
-    backgroundColor: '#9b59b6',
+    backgroundColor: '#39ff14',
     paddingVertical: 15,
     borderRadius: 8,
     alignItems: 'center',
+    shadowColor: '#39ff14',
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
+    elevation: 4,
   },
   magicButtonText: {
-    color: '#fff',
+    color: '#18181b',
     fontSize: 16,
     fontWeight: 'bold',
+    textShadowColor: '#fffb00',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   resultCard: {
-    backgroundColor: '#fdfbfe',
-    borderColor: '#e8daef',
+    backgroundColor: '#1a1a2e',
+    borderColor: '#ff00c8',
     borderWidth: 1,
     borderRadius: 15,
     padding: 15,
     marginBottom: 40,
+    shadowColor: '#ff00c8',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 2,
   },
+  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  planWeeks: { color: '#fffb00', fontWeight: 'bold', fontSize: 13 },
+  savedAt: { color: '#555', fontSize: 11, marginBottom: 8, fontStyle: 'italic' },
+  progressionText: { color: '#00eaff', fontSize: 13, marginBottom: 10, lineHeight: 18, fontStyle: 'italic' },
+  exRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  regenBtn: { backgroundColor: '#232946', borderWidth: 1, borderColor: '#39ff14', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 14 },
+  regenBtnText: { color: '#39ff14', fontWeight: 'bold', fontSize: 14 },
   resultGoal: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#8e44ad',
+    color: '#fffb00',
     marginBottom: 15,
+    textShadowColor: '#00eaff',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   dayBox: {
     marginBottom: 15,
-    backgroundColor: '#fff',
+    backgroundColor: '#232946',
     padding: 10,
     borderRadius: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
+    shadowColor: '#00eaff',
+    shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 1,
   },
   dayTitle: {
     fontWeight: 'bold',
     fontSize: 16,
-    color: '#2c3e50',
+    color: '#ff00c8',
     marginBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#39ff14',
     paddingBottom: 5,
+    textShadowColor: '#fffb00',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   exerciseText: {
     fontSize: 15,
-    color: '#34495e',
+    color: '#00eaff',
     marginBottom: 5,
+    textShadowColor: '#ff00c8',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   },
   repsText: {
     fontWeight: 'bold',
-    color: '#7f8c8d',
+    color: '#39ff14',
+    textShadowColor: '#fffb00',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   },
   adviceText: {
     marginTop: 10,
     fontStyle: 'italic',
-    color: '#555',
+    color: '#fffb00',
+    textShadowColor: '#00eaff',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   }
 });
