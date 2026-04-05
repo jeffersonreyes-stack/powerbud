@@ -1,119 +1,169 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Verifica que la API Key esté presente
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
   console.warn('Advertencia: GEMINI_API_KEY no está configurada en las variables de entorno.');
 }
 
-// Inicializa el cliente de Gemini
 const genAI = new GoogleGenerativeAI(apiKey || 'dummy-key-for-dev');
 
-/**
- * Servicio de IA para Powerbud usando Google Gemini.
- * Genera una rutina de entrenamiento estructurada basada en los parámetros del cliente.
- */
+// ── Rol especializado según el objetivo del usuario ───────────────────────── 
+function getSpecialistRole(goal) {
+  const g = (goal || '').toLowerCase();
+  if (g.includes('hipertrofia') || g.includes('músculo') || g.includes('masa'))
+    return 'especialista en hipertrofia muscular certificado (CSCS, NSCA), con 15 años de experiencia en periodización para ganancia de masa magra';
+  if (g.includes('fuerza') || g.includes('potencia') || g.includes('powerlifting') || g.includes('halterofilia'))
+    return 'preparador físico especializado en deportes de fuerza (powerlifting, halterofilia) y periodización ondulante, con expertise en programas conjugados y westside';
+  if (g.includes('pérdida') || g.includes('bajar') || g.includes('grasa') || g.includes('definición') || g.includes('corte'))
+    return 'especialista en recomposición corporal y pérdida de grasa, con formación en nutrición deportiva y estrategias de déficit calórico controlado que preservan la masa muscular';
+  if (g.includes('resistencia') || g.includes('cardio') || g.includes('aeróbico') || g.includes('maraton') || g.includes('triatlón'))
+    return 'entrenador de resistencia y atletismo certificado (IAAF), especializado en periodización para deportes de fondo, VO2max y umbral de lactato';
+  if (g.includes('rehabilitación') || g.includes('lesión') || g.includes('fisio'))
+    return 'fisioterapeuta deportivo y entrenador certificado en ejercicio terapéutico, con especialización en readaptación deportiva y prevención de lesiones';
+  if (g.includes('funcional') || g.includes('crossfit') || g.includes('atlético'))
+    return 'entrenador de fitness funcional y acondicionamiento atlético, especializado en movimientos compuestos, movilidad y desarrollo de capacidades físicas generales';
+  // default
+  return 'entrenador personal certificado (ACSM, NSCA) con amplia experiencia en programas de acondicionamiento físico general y mejora de la salud';
+}
+
 const aiService = {
   async generateWorkoutPlan(clientProfile, progressData = {}) {
     try {
-      // Usamos el modelo más capaz para generación de texto complejo
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
         generationConfig: { thinkingConfig: { thinkingBudget: 0 } }
       });
 
-      // Extraemos los datos del cliente para construir el prompt
       const {
-        age,
-        weight_kg,
-        height_cm,
-        goal, // ej: "hipertrofia", "pérdida de peso", "fuerza"
-        days_per_week,
-        experience_level, // ej: "principiante", "intermedio", "avanzado"
-        injuries // ej: "dolor de rodilla izquierda" o "ninguna"
+        age, weight_kg, height_cm, goal,
+        days_per_week, experience_level, injuries
       } = clientProfile;
 
-      // Construcción del Prompt Experto (Instrucciones para la IA)
-      const prompt = `
-        Actúa como un entrenador personal experto de élite y nutricionista deportivo de la plataforma "Powerbud".
-        Necesito que diseñes un MESOCICLO COMPLETO DE 6 SEMANAS de entrenamiento para un cliente con las siguientes características:
+      const specialistRole = getSpecialistRole(goal);
 
-        - Edad: ${age || 'No especificada'} años
-        - Sexo: ${clientProfile.sex || 'No especificado'}
-        - Peso: ${weight_kg || 'No especificado'} kg
-        - Altura: ${height_cm || 'No especificada'} cm
-        - Medida de cintura: ${clientProfile.waist_cm || 'No especificada'} cm
-        - Medida de cuello: ${clientProfile.neck_cm || 'No especificado'} cm
-        - Nivel de actividad física: ${clientProfile.activity_level || 'Moderado'}
-        - Nivel de experiencia: ${experience_level || 'Principiante'}
-        - Objetivo principal: ${goal || 'Mejorar condición física general'}
-        - Días disponibles por semana: ${days_per_week || 3} días
-        - Lesiones o limitaciones físicas: ${injuries || 'Ninguna reportada'}
+      // ── PROMPT 1: Generación del plan ──────────────────────────────────────
+      const generationPrompt = `
+Eres un ${specialistRole}, trabajando en la plataforma "PowerBud".
+Tu misión es diseñar el mejor mesociclo posible de 6 semanas para este atleta, aplicando tu especialización al máximo.
 
-        HISTORIAL DE PROGRESO REAL DEL USUARIO:
-        ${progressData.bodyMetrics && progressData.bodyMetrics.length > 0
-          ? `Peso corporal (registros recientes más antiguo → más reciente):
-          ${progressData.bodyMetrics.map(m => `${m.date}: ${m.weight_kg} kg${m.sleep_hours ? ` | sueño: ${m.sleep_hours}h` : ''}${m.stress_level ? ` | estrés: ${m.stress_level}/5` : ''}${m.notes ? ` (${m.notes})` : ''}`).join(' | ')}
-          Tendencia: ${progressData.bodyMetrics.length >= 2
-            ? (progressData.bodyMetrics[progressData.bodyMetrics.length-1].weight_kg > progressData.bodyMetrics[0].weight_kg ? '⬆ Ganando peso' : '⬇ Bajando peso')
-            : 'Datos insuficientes'}`
-          : 'Sin registros de peso aún.'}
-        ${progressData.exerciseProgress && progressData.exerciseProgress.length > 0
-          ? `Ejercicios con progreso registrado (máximo peso levantado y sesiones):
-          ${progressData.exerciseProgress.map(e => `${e.exercise}: ${e.max_weight}kg máx, ${e.sessions} sesiones, último: ${e.last_date}`).join(' | ')}`
-          : 'Sin historial de ejercicios aún.'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PERFIL COMPLETO DEL ATLETA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Edad: ${age || 'No especificada'} años
+- Sexo: ${clientProfile.sex || 'No especificado'}
+- Peso: ${weight_kg || 'No especificado'} kg
+- Altura: ${height_cm || 'No especificada'} cm
+- Cintura: ${clientProfile.waist_cm || 'No especificada'} cm
+- Cuello: ${clientProfile.neck_cm || 'No especificado'} cm
+- Nivel de actividad: ${clientProfile.activity_level || 'Moderado'}
+- Experiencia: ${experience_level || 'Principiante'}
+- OBJETIVO PRINCIPAL: ${goal || 'Mejorar condición física general'}
+- Días disponibles: ${days_per_week || 3} días/semana
+- Lesiones o limitaciones: ${injuries || 'Ninguna reportada'}
 
-        TASA DE RECUPERACIÓN:
-        ACWR (Acute:Chronic Workload Ratio): ${progressData.recovery?.acwr !== null && progressData.recovery?.acwr !== undefined ? `${progressData.recovery.acwr} (zona: ${progressData.recovery.acwr_zone})` : 'sin datos'}
-        - Zona óptima: 0.8-1.3 | Precaución: 1.3-1.5 | Sobreentrenamiento: >1.5
-        Sueño promedio últimos 7 días: ${progressData.recovery?.avg_sleep ? `${progressData.recovery.avg_sleep}h (recomendado: 7-9h)` : 'sin datos'}
-        Nivel de estrés promedio: ${progressData.recovery?.avg_stress ? `${progressData.recovery.avg_stress}/5` : 'sin datos'}
-        IMPORTANTE: Si el ACWR está en zona de precaución o sobreentrenamiento, reduce el volumen total del mesociclo las primeras 2 semanas e incluye una semana de descarga (deload) en la semana 3. Si el sueño es menor a 7h, agrega notas específicas sobre la importancia del descanso y reduce la intensidad sugerida.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HISTORIAL DE PROGRESO REAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${progressData.bodyMetrics && progressData.bodyMetrics.length > 0
+  ? `Peso corporal (antiguo → reciente):
+${progressData.bodyMetrics.map(m => `  ${m.date}: ${m.weight_kg}kg${m.sleep_hours ? ` | sueño: ${m.sleep_hours}h` : ''}${m.stress_level ? ` | estrés: ${m.stress_level}/5` : ''}${m.notes ? ` | nota: ${m.notes}` : ''}`).join('\n')}
+Tendencia: ${progressData.bodyMetrics.length >= 2
+    ? (progressData.bodyMetrics[progressData.bodyMetrics.length-1].weight_kg > progressData.bodyMetrics[0].weight_kg ? '⬆ Ganando peso' : '⬇ Bajando peso')
+    : 'Datos insuficientes'}`
+  : 'Sin registros de peso aún.'}
 
-        IMPORTANTE: Usa el historial de progreso para adaptar la rutina. Si hay ejercicios ya dominados, aplica progresión desde el peso máximo registrado. Si hay lesiones en las notas de peso, tenlas en cuenta estrictamente.
+${progressData.exerciseProgress && progressData.exerciseProgress.length > 0
+  ? `Historial de ejercicios (peso máx, sesiones, último registro):
+${progressData.exerciseProgress.map(e => `  ${e.exercise}: ${e.max_weight}kg máx | ${e.sessions} sesiones | último: ${e.last_date}`).join('\n')}`
+  : 'Sin historial de ejercicios registrado.'}
 
-        Instrucciones estrictas:
-        1. El mesociclo debe tener progresión de 6 semanas (aumenta intensidad/volumen progresivamente).
-        2. La rutina debe estar adaptada a su nivel, sexo y objetivo, evitando agravar lesiones reportadas.
-        3. Proporciona una rutina semanal base (que se repite con progresión cada semana) distribuida en los días solicitados.
-        4. Para cada día, lista los ejercicios incluyendo series (sets) y repeticiones (reps).
-        5. Incluye notas de progresión por semana (ej: "Semana 3-4: Aumenta un 5% el peso").
-        6. DEVUELVE LA RESPUESTA ÚNICAMENTE EN FORMATO JSON VÁLIDO. No agregues texto antes ni después del JSON.
-        7. La estructura del JSON debe ser exactamente esta:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ESTADO DE RECUPERACIÓN (ACWR)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACWR: ${progressData.recovery?.acwr !== null && progressData.recovery?.acwr !== undefined ? `${progressData.recovery.acwr} (zona: ${progressData.recovery.acwr_zone})` : 'sin datos'}
+Referencia: <0.8 = desentrenamiento | 0.8-1.3 = óptimo | 1.3-1.5 = precaución | >1.5 = sobreentrenamiento
+Sueño promedio 7 días: ${progressData.recovery?.avg_sleep ? `${progressData.recovery.avg_sleep}h` : 'sin datos'} (recomendado: 7-9h)
+Estrés promedio: ${progressData.recovery?.avg_stress ? `${progressData.recovery.avg_stress}/5` : 'sin datos'}
 
-        {
-          "workout_plan": {
-            "goal": "...",
-            "duration_weeks": 6,
-            "progression_notes": "Descripción de cómo progresa el mesociclo semana a semana",
-            "days": [
-              {
-                "day_number": 1,
-                "focus": "Pecho y Tríceps",
-                "exercises": [
-                  { "name": "Press de banca", "sets": 4, "reps": "8-12", "notes": "Semana 1-2: 60% RM. Semana 3-4: 70% RM. Semana 5-6: 75% RM" }
-                ]
-              }
-            ]
-          },
-          "general_advice": "Un consejo breve de motivación o nutrición específico para el objetivo del cliente."
-        }
-      `;
+CRITERIOS DE AJUSTE POR RECUPERACIÓN:
+- Si ACWR > 1.3: Reduce volumen total 20-30% las primeras 2 semanas. Incluye semana de deload en semana 3.
+- Si sueño < 7h: Reduce intensidad un nivel, añade notas específicas sobre recuperación en el plan.
+- Si ACWR < 0.8: El atleta está desentrenado; empieza con volumen conservador y progresión gradual.
+- Si todos los datos son óptimos: Diseña el programa más efectivo posible para el objetivo.
 
-      // Llamamos a la API de Gemini
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INSTRUCCIONES DE DISEÑO (OBLIGATORIAS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Aplica los principios científicos específicos de tu especialización al diseño del mesociclo.
+2. Progresión semanal clara: volumen, intensidad o densidad deben aumentar progresivamente.
+3. Si hay ejercicios en el historial, construye la progresión desde los pesos máximos registrados.
+4. Adapta estrictamente cada ejercicio para evitar agravar lesiones reportadas.
+5. El enfoque de cada día debe reflejar tu especialidad y el objetivo del atleta.
+6. RESPONDE ÚNICAMENTE CON JSON VÁLIDO. Cero texto antes o después del JSON.
 
-      // Limpiamos la respuesta por si Gemini incluye bloques de código markdown (```json ... ```)
-      const cleanJsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+Estructura JSON requerida:
+{
+  "workout_plan": {
+    "goal": "...",
+    "specialist_focus": "Descripción breve del enfoque especializado aplicado",
+    "duration_weeks": 6,
+    "progression_notes": "Cómo progresa el mesociclo semana a semana con métricas específicas",
+    "days": [
+      {
+        "day_number": 1,
+        "focus": "Nombre del día de entrenamiento",
+        "exercises": [
+          { "name": "Nombre del ejercicio", "sets": 4, "reps": "8-12", "notes": "Notas de progresión por semana" }
+        ]
+      }
+    ]
+  },
+  "general_advice": "Consejo específico de tu especialización para maximizar los resultados del objetivo del atleta."
+}`;
 
-      // Parseamos la respuesta a un objeto JavaScript
-      const workoutPlan = JSON.parse(cleanJsonStr);
+      const genResult = await model.generateContent(generationPrompt);
+      const genText = genResult.response.text();
+      const cleanGen = genText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const workoutPlan = JSON.parse(cleanGen);
 
-      return workoutPlan;
+      // ── PROMPT 2: Revisión y aprobación del plan ───────────────────────────
+      const reviewPrompt = `
+Eres un director técnico de metodología del entrenamiento en PowerBud, con doctorado en Ciencias del Deporte y 20 años de experiencia supervisando entrenadores.
+
+Tu tarea es REVISAR y CORREGIR si es necesario el siguiente plan de entrenamiento antes de entregárselo al usuario.
+
+PERFIL DEL ATLETA:
+- Objetivo: ${goal || 'Mejorar condición física'}
+- Experiencia: ${experience_level || 'Principiante'}
+- Días disponibles: ${days_per_week || 3}/semana
+- Lesiones: ${injuries || 'Ninguna'}
+- ACWR: ${progressData.recovery?.acwr ?? 'sin datos'} (zona: ${progressData.recovery?.acwr_zone ?? 'desconocida'})
+
+PLAN PROPUESTO:
+${JSON.stringify(workoutPlan, null, 2)}
+
+CRITERIOS DE REVISIÓN:
+1. ¿Los ejercicios son apropiados para el nivel de experiencia? (Principiante no debería tener ejercicios olímpicos complejos)
+2. ¿El volumen total es seguro y realista? (No más de 20 series por grupo muscular/semana para intermedios)
+3. ¿Hay progresión clara y coherente entre semanas?
+4. ¿Se respetan las lesiones reportadas?
+5. ¿El ACWR justifica el volumen propuesto?
+6. ¿El general_advice es realmente útil y específico para el objetivo?
+
+Si el plan es correcto y seguro: devuélvelo tal cual.
+Si hay correcciones necesarias: aplícalas directamente en el JSON.
+
+RESPONDE ÚNICAMENTE CON EL JSON FINAL APROBADO. Sin explicaciones, sin texto adicional.`;
+
+      const reviewResult = await model.generateContent(reviewPrompt);
+      const reviewText = reviewResult.response.text();
+      const cleanReview = reviewText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const approvedPlan = JSON.parse(cleanReview);
+
+      return approvedPlan;
 
     } catch (error) {
-      console.error('Error al generar la rutina con la IA de Gemini:', error);
+      console.error('Error al generar la rutina con Gemini:', error);
       throw new Error('No se pudo generar la rutina de entrenamiento. Inténtalo de nuevo más tarde.');
     }
   },

@@ -208,6 +208,7 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       message: 'PowerBud A.I. ha generado tu rutina y la ha guardado en tu historial.',
+      disclaimer: '⚠️ Esta rutina ha sido generada por inteligencia artificial con fines orientativos. No reemplaza el acompañamiento de un entrenador certificado. Para un plan profesional y supervisado, te recomendamos contactar a uno de los entrenadores disponibles en la app.',
       data: workoutPlan,
       profileUsed: clientProfile
     });
