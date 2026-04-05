@@ -97,12 +97,12 @@ export default function DashboardScreen({ setIsAuthenticated }) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
       <View style={styles.header}>
-        <Text style={styles.greeting}>
+        <Text style={styles.greeting} numberOfLines={1} adjustsFontSizeToFit>
           {user?.name
             ? `Hola, ${user.name.split(' ')[0]} 👋`
             : `Hola, ${user?.role === 'trainer' ? 'Entrenador' : user?.role === 'nutritionist' ? 'Nutricionista' : 'Atleta'} 👋`}
         </Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8, flexShrink: 0 }}>
           {user?.role === 'client' && (
             <TouchableOpacity onPress={() => setShowEditProfile(true)} style={styles.editProfileBtn}>
               <Text style={styles.editProfileText}>⚙️ Perfil</Text>
@@ -239,10 +239,12 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#39ff14', // Neon green
+    color: '#39ff14',
     textShadowColor: '#00eaff',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
+    flex: 1,
+    marginRight: 8,
   },
   logoutBtn: {
     padding: 8,

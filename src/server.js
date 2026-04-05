@@ -182,46 +182,8 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
     console.log('Generando rutina PowerBud A.I. con Gemini. Objetivo:', clientProfile.goal);
     const workoutPlan = await aiService.generateWorkoutPlan(clientProfile, progressData);
 
-    // GUARDADO AUTOMÁTICO EN BASE DE DATOS
-    // El Entrenador Virtual itera sobre los días y ejercicios para inyectarlos en la tabla 'workouts'
-    const today = new Date();
-
-    for (const day of workoutPlan.workout_plan.days) {
-      // Por cada día del plan, sumamos un día a la fecha actual para crear el calendario
-      const workoutDate = new Date(today);
-      workoutDate.setDate(today.getDate() + (day.day_number - 1));
-      const sqlDate = workoutDate.toISOString().split('T')[0];
-
-      for (const exercise of day.exercises) {
-        // Asumimos un peso predeterminado (ej. 10kg) para que el cliente lo modifique después
-        const defaultWeight = 10;
-
-        // Interpretar los reps (Si Gemini devuelve "8-12", agarramos el 10 como promedio para la BD)
-        let repsToSave = 10;
-        if (typeof exercise.reps === 'number') {
-           repsToSave = exercise.reps;
-        } else if (typeof exercise.reps === 'string') {
-           const match = exercise.reps.match(/\d+/);
-           if (match) repsToSave = parseInt(match[0], 10);
-        }
-
-        const exerciseName = exercise.name;
-
-        // Determinar a quién se le asigna la rutina en la base de datos
-        // Si el rol es cliente, usa su propio ID (userId) y el trainer_id queda NULL (Entrenador Virtual)
-        // Si el rol es entrenador, asigna la rutina al cliente objetivo y se firma con el userId del entrenador
-        const assignToClientId = req.user.role === 'trainer' ? targetClientIdForTrainer : userId;
-        const assignedByTrainerId = req.user.role === 'trainer' ? userId : null;
-
-        await pgDb.query(`
-          INSERT INTO workouts (client_id, trainer_id, date, exercise, weight, reps, modified_by_client)
-          VALUES ($1, $2, $3, $4, $5, $6, FALSE)
-        `, [assignToClientId, assignedByTrainerId, sqlDate, exerciseName, defaultWeight, repsToSave]);
-      }
-    }
-
-    // Devolvemos el JSON estructurado
-    // Guardar el plan JSON completo para recuperarlo después
+    // El plan de IA se guarda SOLO en workout_plans como JSON.
+    // La tabla workouts es exclusivamente para registros manuales del usuario.
     const saveToId = req.user.role === 'trainer' ? targetClientIdForTrainer : userId;
     await pgDb.query(
       'INSERT INTO workout_plans (user_id, plan_json) VALUES ($1, $2)',

@@ -215,6 +215,16 @@ async function initDb() {
       WHERE exercise LIKE '%:%'
     `);
 
+    // Eliminar workouts insertados automáticamente por la IA (fecha futura o pasada con peso exacto de 10kg y trainer_id NULL)
+    // Los workouts reales del usuario siempre tienen peso personalizado o trainer_id asignado
+    await client.query(`
+      DELETE FROM workouts
+      WHERE trainer_id IS NULL
+        AND weight = 10
+        AND modified_by_client = FALSE
+        AND date > CURRENT_DATE
+    `);
+
     // ── Seed alimentos base (colombianos / latinos) ────────────────────────
     const foodSeed = [
       // Proteínas
