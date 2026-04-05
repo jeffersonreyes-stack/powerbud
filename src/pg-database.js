@@ -113,6 +113,25 @@ async function initDb() {
       )
     `);
 
+    // Tabla de Perfil Inicial del Usuario (Onboarding)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE NOT NULL,
+        age INTEGER,
+        sex VARCHAR(20),
+        activity_level VARCHAR(50),
+        weight_kg REAL,
+        height_cm REAL,
+        waist_cm REAL,
+        neck_cm REAL,
+        experience_level VARCHAR(50),
+        goal TEXT,
+        injuries TEXT,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Tabla de Calificaciones y Reseñas de Entrenadores (Reviews)
     await client.query(`
       CREATE TABLE IF NOT EXISTS trainer_reviews (

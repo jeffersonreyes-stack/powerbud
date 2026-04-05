@@ -44,6 +44,39 @@ app.post('/api/auth/login', authController.login);
 // Rutas protegidas de perfil (Cualquier usuario logueado)
 app.get('/api/profile', authenticateToken, authController.getProfile);
 
+// -- ENDPOINTS DE PERFIL INICIAL (ONBOARDING) --
+app.get('/api/v2/user-profile', authenticateToken, async (req, res) => {
+  try {
+    const result = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1', [req.user.id]);
+    if (result.rows.length === 0) return res.json(null);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error obteniendo perfil:', err);
+    res.status(500).json({ error: 'Error al obtener el perfil' });
+  }
+});
+
+app.post('/api/v2/user-profile', authenticateToken, async (req, res) => {
+  try {
+    const { age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries } = req.body;
+    const userId = req.user.id;
+    const sql = `
+      INSERT INTO user_profiles (user_id, age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        age = EXCLUDED.age, sex = EXCLUDED.sex, activity_level = EXCLUDED.activity_level,
+        weight_kg = EXCLUDED.weight_kg, height_cm = EXCLUDED.height_cm, waist_cm = EXCLUDED.waist_cm,
+        neck_cm = EXCLUDED.neck_cm, experience_level = EXCLUDED.experience_level, goal = EXCLUDED.goal,
+        injuries = EXCLUDED.injuries, updated_at = NOW()
+      RETURNING *`;
+    const result = await pgDb.query(sql, [userId, age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries || null]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('Error guardando perfil:', err);
+    res.status(500).json({ error: 'Error al guardar el perfil' });
+  }
+});
+
 // -- SERVICIOS DE INTELIGENCIA ARTIFICIAL (GEMINI) --
 // ¡EL ENTRENADOR VIRTUAL!
 // Ahora cualquier usuario (cliente o entrenador humano) puede pedirle a Gemini una rutina automática.
@@ -55,32 +88,27 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
     // 1. Si es un CLIENTE NORMAL: Él no tiene que llenar nada extra.
     // Vamos a la base de datos y le armamos el perfil automáticamente leyendo sus métricas y metas.
     if (req.user.role === 'client') {
+      // Leer perfil completo del onboarding
+      const profileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [userId]);
+      const profile = profileRes.rows.length > 0 ? profileRes.rows[0] : {};
 
-      // Consultamos su peso, edad y metas más recientes de PostgreSQL:
-      // A. Su meta principal (para saber si quiere perder peso o hipertrofia)
-      const goalRes = await pgDb.query(`SELECT calories FROM goals WHERE user_id = $1 LIMIT 1`, [userId]);
-      const clientGoal = goalRes.rows.length > 0 ? (goalRes.rows[0].calories > 2500 ? "Volumen/Hipertrofia" : "Pérdida de grasa") : "Mejora de la condición física";
-
-      // B. Su peso y altura más recientes
-      const metricsRes = await pgDb.query(`
-        SELECT weight_kg, height_cm, notes
-        FROM body_metrics
-        WHERE user_id = $1 ORDER BY date DESC LIMIT 1
-      `, [userId]);
-
+      // Fallback: leer métricas si no hay perfil
+      const metricsRes = await pgDb.query(`SELECT weight_kg, height_cm, notes FROM body_metrics WHERE user_id = $1 ORDER BY date DESC LIMIT 1`, [userId]);
       const metrics = metricsRes.rows.length > 0 ? metricsRes.rows[0] : {};
 
-      // Armamos el perfil "silencioso" para dárselo a Gemini
       clientProfile = {
-        age: 'No especificada', // Podríamos agregar edad a la tabla users después
-        weight_kg: metrics.weight_kg || 'No especificado',
-        height_cm: metrics.height_cm || 'No especificada',
-        goal: clientGoal,
-        days_per_week: 3, // Días predeterminados para un cliente normal
-        experience_level: 'Principiante',
-        injuries: metrics.notes || 'Ninguna reportada' // Si en "notes" de body_metrics puso "me duele la rodilla", la IA lo lee
+        age: profile.age || 'No especificada',
+        sex: profile.sex || 'No especificado',
+        weight_kg: profile.weight_kg || metrics.weight_kg || 'No especificado',
+        height_cm: profile.height_cm || metrics.height_cm || 'No especificada',
+        waist_cm: profile.waist_cm || 'No especificada',
+        neck_cm: profile.neck_cm || 'No especificado',
+        activity_level: profile.activity_level || 'Moderado',
+        goal: profile.goal || 'Mejora de la condición física',
+        days_per_week: 3,
+        experience_level: profile.experience_level || 'Principiante',
+        injuries: profile.injuries || metrics.notes || 'Ninguna reportada'
       };
-
     }
     // 2. Si es un ENTRENADOR: Él sí manda el perfil personalizado de un cliente suyo por el body (req.body)
     let targetClientIdForTrainer = null;

@@ -7,9 +7,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import api from './src/api';
+
 // Pantallas
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import DietScreen from './src/screens/DietScreen';
 import WorkoutScreen from './src/screens/WorkoutScreen';
@@ -89,9 +92,21 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState('client');
   const [loading, setLoading] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
-  // Al abrir la app en el celular, revisamos rápido la "Bóveda" (AsyncStorage)
-  // para ver si el usuario ya se había logueado la semana pasada
+  const checkOnboardingStatus = async () => {
+    try {
+      const res = await api.get('/v2/user-profile');
+      if (!res.data || !res.data.goal) {
+        setNeedsOnboarding(true);
+      } else {
+        setNeedsOnboarding(false);
+      }
+    } catch {
+      setNeedsOnboarding(true);
+    }
+  };
+
   useEffect(() => {
     const checkToken = async () => {
       try {
@@ -100,6 +115,7 @@ export default function App() {
         if (token && userInfo) {
           setIsAuthenticated(true);
           setUserRole(JSON.parse(userInfo).role);
+          await checkOnboardingStatus();
         }
       } catch (e) {
         console.error('Error leyendo token local', e);
@@ -126,15 +142,17 @@ export default function App() {
         {!isAuthenticated ? (
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Login">
-              {props => <LoginScreen {...props} setIsAuthenticated={(val) => {
+              {props => <LoginScreen {...props} setIsAuthenticated={async (val) => {
                  setIsAuthenticated(val);
-                 AsyncStorage.getItem('userInfo').then(ui => {
-                    if(ui) setUserRole(JSON.parse(ui).role);
-                 });
+                 const ui = await AsyncStorage.getItem('userInfo');
+                 if (ui) setUserRole(JSON.parse(ui).role);
+                 await checkOnboardingStatus();
               }} />}
             </Stack.Screen>
             <Stack.Screen name="Register" component={RegisterScreen} />
           </Stack.Navigator>
+        ) : needsOnboarding ? (
+          <OnboardingScreen onComplete={() => setNeedsOnboarding(false)} />
         ) : (
           <MainTabNavigator setIsAuthenticated={setIsAuthenticated} userRole={userRole} />
         )}

@@ -17,7 +17,7 @@ const aiService = {
   async generateWorkoutPlan(clientProfile) {
     try {
       // Usamos el modelo más capaz para generación de texto complejo
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       // Extraemos los datos del cliente para construir el prompt
       const {
@@ -33,37 +33,45 @@ const aiService = {
       // Construcción del Prompt Experto (Instrucciones para la IA)
       const prompt = `
         Actúa como un entrenador personal experto de élite y nutricionista deportivo de la plataforma "Powerbud".
-        Necesito que diseñes una rutina de entrenamiento para un cliente con las siguientes características:
+        Necesito que diseñes un MESOCICLO COMPLETO DE 6 SEMANAS de entrenamiento para un cliente con las siguientes características:
 
         - Edad: ${age || 'No especificada'} años
+        - Sexo: ${clientProfile.sex || 'No especificado'}
         - Peso: ${weight_kg || 'No especificado'} kg
         - Altura: ${height_cm || 'No especificada'} cm
+        - Medida de cintura: ${clientProfile.waist_cm || 'No especificada'} cm
+        - Medida de cuello: ${clientProfile.neck_cm || 'No especificado'} cm
+        - Nivel de actividad física: ${clientProfile.activity_level || 'Moderado'}
         - Nivel de experiencia: ${experience_level || 'Principiante'}
         - Objetivo principal: ${goal || 'Mejorar condición física general'}
         - Días disponibles por semana: ${days_per_week || 3} días
         - Lesiones o limitaciones físicas: ${injuries || 'Ninguna reportada'}
 
         Instrucciones estrictas:
-        1. La rutina debe estar adaptada a su nivel y objetivo, evitando agravar lesiones reportadas.
-        2. Proporciona una rutina distribuida en los días solicitados (ej. Día 1: Pecho/Tríceps, Día 2: Espalda/Bíceps).
-        3. Para cada día, lista los ejercicios incluyendo series (sets) y repeticiones (reps).
-        4. DEVUELVE LA RESPUESTA ÚNICAMENTE EN FORMATO JSON VÁLIDO. No agregues texto antes ni después del JSON.
-        5. La estructura del JSON debe ser exactamente esta:
+        1. El mesociclo debe tener progresión de 6 semanas (aumenta intensidad/volumen progresivamente).
+        2. La rutina debe estar adaptada a su nivel, sexo y objetivo, evitando agravar lesiones reportadas.
+        3. Proporciona una rutina semanal base (que se repite con progresión cada semana) distribuida en los días solicitados.
+        4. Para cada día, lista los ejercicios incluyendo series (sets) y repeticiones (reps).
+        5. Incluye notas de progresión por semana (ej: "Semana 3-4: Aumenta un 5% el peso").
+        6. DEVUELVE LA RESPUESTA ÚNICAMENTE EN FORMATO JSON VÁLIDO. No agregues texto antes ni después del JSON.
+        7. La estructura del JSON debe ser exactamente esta:
 
         {
           "workout_plan": {
             "goal": "...",
+            "duration_weeks": 6,
+            "progression_notes": "Descripción de cómo progresa el mesociclo semana a semana",
             "days": [
               {
                 "day_number": 1,
                 "focus": "Pecho y Tríceps",
                 "exercises": [
-                  { "name": "Press de banca", "sets": 4, "reps": "8-12", "notes": "Mantener retracción escapular" }
+                  { "name": "Press de banca", "sets": 4, "reps": "8-12", "notes": "Semana 1-2: 60% RM. Semana 3-4: 70% RM. Semana 5-6: 75% RM" }
                 ]
               }
             ]
           },
-          "general_advice": "Un consejo breve de motivación o nutrición."
+          "general_advice": "Un consejo breve de motivación o nutrición específico para el objetivo del cliente."
         }
       `;
 
