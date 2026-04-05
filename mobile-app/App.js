@@ -97,19 +97,18 @@ function MainTabNavigator({ setIsAuthenticated, userRole }) {
       <Tab.Screen name="Inicio">
         {props => <DashboardScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
       </Tab.Screen>
-      <Tab.Screen name="Dieta" component={DietScreen} />
 
-      {/* Nutricionistas solo ven Dieta y Mis Clientes */}
-      {userRole !== 'nutritionist' && (
-        <Tab.Screen name="Rutina" component={WorkoutScreen} />
-      )}
+      {/* Tabs exclusivos de clientes */}
+      {userRole === 'client' && <Tab.Screen name="Dieta" component={DietScreen} />}
+      {userRole === 'client' && <Tab.Screen name="Rutina" component={WorkoutScreen} />}
+      {userRole === 'client' && <Tab.Screen name="Progreso" component={ProgressScreen} />}
+      {userRole === 'client' && <Tab.Screen name="Reseñas" component={ReviewScreen} />}
 
-      {userRole === 'client' ? (
-        <>
-          <Tab.Screen name="Progreso" component={ProgressScreen} />
-          <Tab.Screen name="Reseñas" component={ReviewScreen} />
-        </>
-      ) : (
+      {/* Nutricionista: acceso a dieta para sus clientes */}
+      {userRole === 'nutritionist' && <Tab.Screen name="Dieta" component={DietScreen} />}
+
+      {/* Profesionales: panel de clientes */}
+      {(userRole === 'trainer' || userRole === 'nutritionist') && (
         <Tab.Screen name="Mis Clientes" component={TrainerClientsScreen} />
       )}
 
@@ -196,7 +195,7 @@ export default function App() {
             <Stack.Screen name="Register" component={RegisterScreen} />
           </Stack.Navigator>
         ) : needsOnboarding ? (
-          <OnboardingScreen onComplete={() => setNeedsOnboarding(false)} />
+          <OnboardingScreen onComplete={() => setNeedsOnboarding(false)} userRole={userRole} />
         ) : (
           <MainTabNavigator setIsAuthenticated={setIsAuthenticated} userRole={userRole} />
         )}

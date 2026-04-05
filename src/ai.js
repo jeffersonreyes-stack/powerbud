@@ -7,27 +7,95 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey || 'dummy-key-for-dev');
 
-// ── Rol especializado según el objetivo del usuario ───────────────────────── 
-function getSpecialistRole(goal) {
-  const g = (goal || '').toLowerCase();
-  if (g.includes('hipertrofia') || g.includes('músculo') || g.includes('masa'))
-    return 'especialista en hipertrofia muscular certificado (CSCS, NSCA), con 15 años de experiencia en periodización para ganancia de masa magra';
-  if (g.includes('fuerza') || g.includes('potencia') || g.includes('powerlifting') || g.includes('halterofilia'))
-    return 'preparador físico especializado en deportes de fuerza (powerlifting, halterofilia) y periodización ondulante, con expertise en programas conjugados y westside';
-  if (g.includes('pérdida') || g.includes('bajar') || g.includes('grasa') || g.includes('definición') || g.includes('corte'))
-    return 'especialista en recomposición corporal y pérdida de grasa, con formación en nutrición deportiva y estrategias de déficit calórico controlado que preservan la masa muscular';
-  if (g.includes('resistencia') || g.includes('cardio') || g.includes('aeróbico') || g.includes('maraton') || g.includes('triatlón'))
-    return 'entrenador de resistencia y atletismo certificado (IAAF), especializado en periodización para deportes de fondo, VO2max y umbral de lactato';
-  if (g.includes('rehabilitación') || g.includes('lesión') || g.includes('fisio'))
-    return 'fisioterapeuta deportivo y entrenador certificado en ejercicio terapéutico, con especialización en readaptación deportiva y prevención de lesiones';
-  if (g.includes('funcional') || g.includes('crossfit') || g.includes('atlético'))
-    return 'entrenador de fitness funcional y acondicionamiento atlético, especializado en movimientos compuestos, movilidad y desarrollo de capacidades físicas generales';
-  // default
-  return 'entrenador personal certificado (ACSM, NSCA) con amplia experiencia en programas de acondicionamiento físico general y mejora de la salud';
+// ══════════════════════════════════════════════════════════════════════════════
+// CATÁLOGO DE ASISTENTES IA — disponibles para selección del entrenador
+// Cada entrada: { label (UI), role (contexto del prompt), methodology (énfasis técnico) }
+// ══════════════════════════════════════════════════════════════════════════════
+const AI_SPECIALISTS = {
+  hipertrofia: {
+    label: '💪 Especialista en Hipertrofia',
+    role: 'especialista en hipertrofia muscular certificado (CSCS, NSCA), con 15 años de experiencia aplicando periodización científica (DUP, HST, Renaissance Periodization) para ganancia de masa magra',
+    methodology: 'Prioriza rango de repeticiones 6-15, tiempo bajo tensión, volumen por grupo muscular (12-20 series/semana), técnicas de intensidad (drop sets, myo-reps). Progresión de carga doble o por tiempo bajo tensión.',
+  },
+  powerlifting: {
+    label: '🏋️ Coach de Powerlifting',
+    role: 'coach de powerlifting certificado por la IPF, especialista en periodización para sentadilla, press banca y peso muerto, con experiencia en programas 5/3/1, Texas Method y Sheiko',
+    methodology: 'Enfoque en los 3 levantamientos principales. Periodicidad 3-5 días. Rangos de intensidad 70-95% 1RM. Progresión linear o por bloques. Variantes de competencia y accesorios de asistencia.',
+  },
+  halterofilia: {
+    label: '🥇 Coach de Halterofilia',
+    role: 'entrenador de halterofilia certificado (IWF), especialista en arrancada y cargada y envión, con experiencia en programas búlgaros, soviéticos y de la CCCP adaptados al atleta moderno',
+    methodology: 'Levantamientos olímpicos como núcleo. Técnica antes que carga. Variantes: tirones, sentadillas frontales, posición de recepción. Alta frecuencia (4-6 días). Progresión técnica y de fuerza en paralelo.',
+  },
+  fuerza_funcional: {
+    label: '⚡ Entrenador Funcional / CrossFit',
+    role: 'entrenador de fitness funcional de alto rendimiento, certificado CrossFit L2, especialista en acondicionamiento metabólico, movimientos gymnásticos y levantamientos olímpicos en formato WOD',
+    methodology: 'WODs mixtos de cardio + fuerza + gimnásticos. Escalado individualizado. Énfasis en movilidad articular. MetCons, AMRAPs, EMOMs. Variedad alta para evitar adaptación.',
+  },
+  perdida_grasa: {
+    label: '🔥 Especialista en Pérdida de Grasa',
+    role: 'especialista en recomposición corporal y pérdida de grasa, certificado en nutrición deportiva (ISSN), con metodología de circuitos de resistencia + HIIT que preservan masa muscular en déficit calórico',
+    methodology: 'Circuitos de fuerza con cardio intervalado. Densidad alta (descansos cortos 45-90s). Superset de grupos antagonistas. Cardio LISS como complemento. Preservación muscular en déficit.',
+  },
+  resistencia: {
+    label: '🏃 Entrenador de Resistencia y Atletismo',
+    role: 'entrenador de resistencia certificado (IAAF Level 2), especialista en desarrollo aeróbico, VO2max, umbral de lactato y periodización para deportes de fondo (5K, 10K, media maratón, maratón, triatlón)',
+    methodology: 'Entrenamiento polarizado 80/20. Zonas de frecuencia cardíaca. Long slow distance + intervalos de alta intensidad. Fuerza de soporte como complemento. Mesociclos de base, velocidad y específico.',
+  },
+  rehabilitacion: {
+    label: '🩺 Especialista en Rehabilitación Deportiva',
+    role: 'fisioterapeuta deportivo y entrenador certificado en ejercicio terapéutico (ACSM-CEP), con especialización en readaptación deportiva, prevención de recaídas y retorno progresivo al rendimiento',
+    methodology: 'Progresión cautelosa y controlada. Énfasis en control motor, estabilización articular y movilidad. Sin movimientos de impacto hasta alcanzar umbrales de seguridad. Trabajo bilateral compensatorio.',
+  },
+  calistenia: {
+    label: '🤸 Coach de Calistenia',
+    role: 'coach de calistenia y street workout, especialista en progresión de habilidades de peso corporal (muscle up, front lever, planche, pistol squat) y fuerza relativa sin equipamiento',
+    methodology: 'Progresiones de peso corporal por niveles (regresiones y progresiones). Skills: estática, dinámica y de fuerza. Volume work + skill training separados. Movilidad y elasticidad como base.',
+  },
+  deporte_combate: {
+    label: '🥊 Preparador Físico de Deportes de Combate',
+    role: 'preparador físico especializado en deportes de combate (MMA, boxeo, jiu-jitsu, muay thai), con expertise en acondicionamiento específico, potencia explosiva y gestión de peso para competencia',
+    methodology: 'Potencia y fuerza explosiva como prioridad. Cardio de alta intensidad anaeróbica. Periodización hacia pelea o competencia. Trabajo de core anti-rotacional. Sin fatigar antes de sesiones técnicas.',
+  },
+  atletismo_velocidad: {
+    label: '💨 Entrenador de Velocidad y Potencia',
+    role: 'preparador físico de atletismo y velocidad, certificado USATF, especialista en desarrollo de fuerza explosiva, aceleración, velocidad máxima y mecánica de sprints para atletas de campo y pista',
+    methodology: 'Pliometría, sprints y saltos como núcleo. Fuerza máxima como base de potencia. Técnica de carrera integrada. Potencia explosiva medida en watts. Períodos de peaking para competencia.',
+  },
+  adulto_mayor: {
+    label: '👴 Entrenador para Adulto Mayor',
+    role: 'especialista en ejercicio para adulto mayor y envejecimiento activo, certificado (ACSM Exercise Physiologist), con experiencia en prevención de sarcopenia, osteoporosis y caídas en personas mayores de 55 años',
+    methodology: 'Ejercicios de bajo impacto con alta seguridad articular. Fuerza funcional: levantarse, empujar, jalar, equilibrio. Sin movimientos de alta velocidad ni impacto. Progresión conservadora. Mucho trabajo de core y equilibrio.',
+  },
+  general: {
+    label: '🎯 Entrenador Personal General',
+    role: 'entrenador personal certificado (ACSM, NSCA-CPT) con amplia experiencia en programas de acondicionamiento físico general, mejora de la salud y hábitos deportivos sostenibles a largo plazo',
+    methodology: 'Balance entre fuerza, cardio y movilidad. Rango de reps variado (8-15). Progresión gradual. Ejercicios seguros y accesibles. Motivación y adherencia como pilares.',
+  },
+};
+
+// Devuelve el especialista correcto: si el entrenador definió uno, se usa ese.
+// Si no, se infiere del objetivo del cliente (backward compatibility).
+function resolveSpecialist(trainerSpecialist, clientGoal) {
+  if (trainerSpecialist && AI_SPECIALISTS[trainerSpecialist]) {
+    return AI_SPECIALISTS[trainerSpecialist];
+  }
+  // fallback: inferir del objetivo del cliente
+  const g = (clientGoal || '').toLowerCase();
+  if (g.includes('hipertrofia') || g.includes('músculo') || g.includes('masa')) return AI_SPECIALISTS.hipertrofia;
+  if (g.includes('powerlifting')) return AI_SPECIALISTS.powerlifting;
+  if (g.includes('halterofilia')) return AI_SPECIALISTS.halterofilia;
+  if (g.includes('crossfit') || g.includes('funcional')) return AI_SPECIALISTS.fuerza_funcional;
+  if (g.includes('pérdida') || g.includes('grasa') || g.includes('bajar') || g.includes('definición')) return AI_SPECIALISTS.perdida_grasa;
+  if (g.includes('resistencia') || g.includes('cardio') || g.includes('maratón') || g.includes('triatlón')) return AI_SPECIALISTS.resistencia;
+  if (g.includes('rehabilitación') || g.includes('lesión')) return AI_SPECIALISTS.rehabilitacion;
+  if (g.includes('fuerza') || g.includes('potencia')) return AI_SPECIALISTS.powerlifting;
+  return AI_SPECIALISTS.general;
 }
 
 const aiService = {
-  async generateWorkoutPlan(clientProfile, progressData = {}) {
+  // trainerContext = { ai_specialist, trainer_instructions, trainer_name }
+  async generateWorkoutPlan(clientProfile, progressData = {}, trainerContext = {}) {
     try {
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
@@ -39,12 +107,18 @@ const aiService = {
         days_per_week, experience_level, injuries
       } = clientProfile;
 
-      const specialistRole = getSpecialistRole(goal);
+      const specialist = resolveSpecialist(trainerContext.ai_specialist, goal);
+      const trainerInstructions = trainerContext.trainer_instructions || null;
+      const trainerName = trainerContext.trainer_name || null;
 
       // ── PROMPT 1: Generación del plan ──────────────────────────────────────
       const generationPrompt = `
-Eres un ${specialistRole}, trabajando en la plataforma "PowerBud".
-Tu misión es diseñar el mejor mesociclo posible de 6 semanas para este atleta, aplicando tu especialización al máximo.
+IDENTIDAD Y ROL:
+Eres un ${specialist.role}, operando como asistente de IA en la plataforma "PowerBud".
+${trainerName ? `El entrenador humano responsable de este cliente es "${trainerName}", quien ha configurado tu rol y metodología. Tu plan será revisado y aprobado por él antes de entregarse al cliente.` : 'Tu plan pasará por una revisión técnica antes de entregarse al cliente.'}
+Tu enfoque metodológico para este plan: ${specialist.methodology}
+
+Aplica tu especialización de forma precisa, coherente y científicamente fundamentada en cada decisión de diseño.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PERFIL COMPLETO DEL ATLETA
@@ -62,6 +136,13 @@ PERFIL COMPLETO DEL ATLETA
 - Lesiones o limitaciones: ${injuries || 'Ninguna reportada'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${trainerInstructions ? `INSTRUCCIONES ESPECÍFICAS DEL ENTRENADOR (OBLIGATORIO CUMPLIR)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${trainerInstructions}
+
+Estas instrucciones tienen PRIORIDAD MÁXIMA sobre cualquier consideración general. El entrenador humano conoce al cliente y sus requerimientos superan los valores por defecto.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''}
 HISTORIAL DE PROGRESO REAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${progressData.bodyMetrics && progressData.bodyMetrics.length > 0
@@ -94,18 +175,20 @@ CRITERIOS DE AJUSTE POR RECUPERACIÓN:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INSTRUCCIONES DE DISEÑO (OBLIGATORIAS)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Aplica los principios científicos específicos de tu especialización al diseño del mesociclo.
+1. Aplica tu metodología específica (${specialist.methodology}) en cada decisión de diseño.
 2. Progresión semanal clara: volumen, intensidad o densidad deben aumentar progresivamente.
 3. Si hay ejercicios en el historial, construye la progresión desde los pesos máximos registrados.
 4. Adapta estrictamente cada ejercicio para evitar agravar lesiones reportadas.
-5. El enfoque de cada día debe reflejar tu especialidad y el objetivo del atleta.
+5. Si el entrenador dio instrucciones específicas, tienen prioridad máxima.
 6. RESPONDE ÚNICAMENTE CON JSON VÁLIDO. Cero texto antes o después del JSON.
 
 Estructura JSON requerida:
 {
   "workout_plan": {
     "goal": "...",
-    "specialist_focus": "Descripción breve del enfoque especializado aplicado",
+    "specialist_type": "${trainerContext.ai_specialist || 'general'}",
+    "specialist_focus": "Descripción del enfoque metodológico aplicado en este plan específico",
+    "trainer_notes": "${trainerInstructions ? 'Instrucciones del entrenador aplicadas' : 'Plan generado por IA'}",
     "duration_weeks": 6,
     "progression_notes": "Cómo progresa el mesociclo semana a semana con métricas específicas",
     "days": [
@@ -118,7 +201,7 @@ Estructura JSON requerida:
       }
     ]
   },
-  "general_advice": "Consejo específico de tu especialización para maximizar los resultados del objetivo del atleta."
+  "general_advice": "Consejo específico alineado con la metodología del especialista y el objetivo del atleta."
 }`;
 
       const genResult = await model.generateContent(generationPrompt);
@@ -126,11 +209,14 @@ Estructura JSON requerida:
       const cleanGen = genText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const workoutPlan = JSON.parse(cleanGen);
 
-      // ── PROMPT 2: Revisión y aprobación del plan ───────────────────────────
+      // ── PROMPT 2: Revisión por director técnico ────────────────────────────
       const reviewPrompt = `
-Eres un director técnico de metodología del entrenamiento en PowerBud, con doctorado en Ciencias del Deporte y 20 años de experiencia supervisando entrenadores.
+Eres un director técnico de metodología del entrenamiento en PowerBud, con doctorado en Ciencias del Deporte y 20 años supervisando entrenadores.
 
-Tu tarea es REVISAR y CORREGIR si es necesario el siguiente plan de entrenamiento antes de entregárselo al usuario.
+CONTEXTO:
+- Especialista IA que generó el plan: ${specialist.role}
+- Metodología aplicada: ${specialist.methodology}
+${trainerInstructions ? `- Instrucciones del entrenador humano que DEBEN respetarse: "${trainerInstructions}"` : ''}
 
 PERFIL DEL ATLETA:
 - Objetivo: ${goal || 'Mejorar condición física'}
@@ -143,24 +229,21 @@ PLAN PROPUESTO:
 ${JSON.stringify(workoutPlan, null, 2)}
 
 CRITERIOS DE REVISIÓN:
-1. ¿Los ejercicios son apropiados para el nivel de experiencia? (Principiante no debería tener ejercicios olímpicos complejos)
-2. ¿El volumen total es seguro y realista? (No más de 20 series por grupo muscular/semana para intermedios)
-3. ¿Hay progresión clara y coherente entre semanas?
+1. ¿Los ejercicios son coherentes con la metodología ${specialist.label}?
+2. ¿El nivel de complejidad es apropiado para la experiencia del atleta?
+3. ¿El volumen es seguro y realista para los días disponibles?
 4. ¿Se respetan las lesiones reportadas?
 5. ¿El ACWR justifica el volumen propuesto?
-6. ¿El general_advice es realmente útil y específico para el objetivo?
+${trainerInstructions ? `6. ¿Las instrucciones del entrenador "${trainerInstructions}" están correctamente applied?` : ''}
 
-Si el plan es correcto y seguro: devuélvelo tal cual.
-Si hay correcciones necesarias: aplícalas directamente en el JSON.
-
-RESPONDE ÚNICAMENTE CON EL JSON FINAL APROBADO. Sin explicaciones, sin texto adicional.`;
+Si el plan es correcto: devuélvelo tal cual.
+Si necesita correcciones: aplícalas directamente.
+RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
 
       const reviewResult = await model.generateContent(reviewPrompt);
       const reviewText = reviewResult.response.text();
       const cleanReview = reviewText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const approvedPlan = JSON.parse(cleanReview);
-
-      return approvedPlan;
+      return JSON.parse(cleanReview);
 
     } catch (error) {
       console.error('Error al generar la rutina con Gemini:', error);
@@ -264,3 +347,4 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin bloques de códi
 };
 
 module.exports = aiService;
+module.exports.AI_SPECIALISTS = AI_SPECIALISTS;

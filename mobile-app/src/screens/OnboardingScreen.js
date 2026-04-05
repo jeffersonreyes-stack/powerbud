@@ -17,11 +17,60 @@ const OBJETIVOS = [
   'Rehabilitación / Movilidad'
 ];
 
-export default function OnboardingScreen({ onComplete, initialData = null, onCancel = null }) {
+const ESPECIALIDADES_TRAINER = [
+  'Entrenamiento funcional',
+  'Hipertrofia y musculación',
+  'Fuerza y powerlifting',
+  'Pérdida de peso',
+  'Resistencia y cardio',
+  'Rehabilitación deportiva',
+  'CrossFit',
+  'Deportes de combate',
+  'Preparación física general',
+];
+
+const ESPECIALIDADES_NUTRI = [
+  'Nutrición deportiva',
+  'Pérdida de peso',
+  'Ganancia muscular',
+  'Nutrición clínica',
+  'Nutrición vegana/vegetariana',
+  'Rendimiento deportivo',
+  'Nutrición pediátrica',
+];
+
+const DISPONIBILIDAD = [
+  'Lunes a viernes',
+  'Lunes a sábado',
+  'Fines de semana',
+  'Horario flexible',
+  'Solo virtual',
+  'Presencial y virtual',
+];
+
+// Catálogo de asistentes IA — sincronizado con ai.js en backend
+const AI_SPECIALISTS = [
+  { key: 'hipertrofia',        label: '💪 Especialista en Hipertrofia',            desc: 'DUP, HST, Renaissance Periodization. 6-15 reps, volumen alto.' },
+  { key: 'powerlifting',       label: '🏋️ Coach de Powerlifting',                  desc: '5/3/1, Texas Method, Sheiko. Sentadilla, press y peso muerto.' },
+  { key: 'halterofilia',       label: '🥇 Coach de Halterofilia',                  desc: 'Arrancada y cargada. Programas búlgaros y soviéticos.' },
+  { key: 'fuerza_funcional',   label: '⚡ Entrenador Funcional / CrossFit',         desc: 'WODs, AMRAPs, EMOMs. MetCons de cardio + fuerza + gimnásticos.' },
+  { key: 'perdida_grasa',      label: '🔥 Especialista en Pérdida de Grasa',        desc: 'HIIT + fuerza. Déficit controlado preservando músculo.' },
+  { key: 'resistencia',        label: '🏃 Entrenador de Resistencia y Atletismo',   desc: 'Polarizado 80/20, VO2max, umbral de lactato. Fondo y triatlón.' },
+  { key: 'rehabilitacion',     label: '🩺 Especialista en Rehabilitación Deportiva',desc: 'Control motor, estabilización articular. Progresión cautelosa.' },
+  { key: 'calistenia',         label: '🤸 Coach de Calistenia',                    desc: 'Muscle up, front lever, planche. Fuerza relativa sin equipo.' },
+  { key: 'deporte_combate',    label: '🥊 Preparador de Deportes de Combate',      desc: 'MMA, boxeo, jiu-jitsu. Potencia explosiva y acondicionamiento.' },
+  { key: 'atletismo_velocidad',label: '💨 Entrenador de Velocidad y Potencia',      desc: 'Pliometría, sprints, saltos. Fuerza explosiva para campo y pista.' },
+  { key: 'adulto_mayor',       label: '👴 Entrenador para Adulto Mayor',            desc: 'Prevención sarcopenia y caídas. Bajo impacto, equilibrio y funcional.' },
+  { key: 'general',            label: '🎯 Entrenador Personal General',             desc: 'Balance fuerza, cardio y movilidad. Hábitos sostenibles.' },
+];
+
+export default function OnboardingScreen({ onComplete, initialData = null, onCancel = null, userRole = 'client' }) {
   const isEditing = !!initialData;
+  const isProfessional = userRole === 'trainer' || userRole === 'nutritionist';
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
+  // ── Campos cliente ────────────────────────────────────────────────────────
   const [age, setAge] = useState(initialData?.age?.toString() || '');
   const [sex, setSex] = useState(initialData?.sex || '');
   const [activityLevel, setActivityLevel] = useState(initialData?.activity_level || '');
@@ -33,25 +82,27 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
   const [goal, setGoal] = useState(initialData?.goal || '');
   const [injuries, setInjuries] = useState(initialData?.injuries || '');
 
+  // ── Campos profesional (trainer / nutritionist) ───────────────────────────
+  const [specialty, setSpecialty] = useState(initialData?.specialty || '');
+  const [availability, setAvailability] = useState(initialData?.availability || '');
+  const [rateInfo, setRateInfo] = useState(initialData?.rate_info || '');
+  const [bio, setBio] = useState(initialData?.bio || '');
+  const [aiSpecialist, setAiSpecialist] = useState(initialData?.ai_specialist || '');
+
+  // ── Guardado cliente ──────────────────────────────────────────────────────
   const handleFinish = async () => {
     if (!age || !sex || !activityLevel || !weightKg || !heightCm || !experienceLevel || !goal) {
       Alert.alert('Faltan datos', 'Por favor completa todos los campos obligatorios.');
       return;
     }
-
     setLoading(true);
     try {
       await api.post('/v2/user-profile', {
-        age: Number(age),
-        sex,
-        activity_level: activityLevel,
-        weight_kg: Number(weightKg),
-        height_cm: Number(heightCm),
+        age: Number(age), sex, activity_level: activityLevel,
+        weight_kg: Number(weightKg), height_cm: Number(heightCm),
         waist_cm: waistCm ? Number(waistCm) : null,
         neck_cm: neckCm ? Number(neckCm) : null,
-        experience_level: experienceLevel,
-        goal,
-        injuries: injuries || null,
+        experience_level: experienceLevel, goal, injuries: injuries || null,
       });
       onComplete();
     } catch (err) {
@@ -61,7 +112,34 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
     }
   };
 
-  const SelectorButton = ({ label, value, selected, onPress }) => (
+  // ── Guardado profesional ──────────────────────────────────────────────────
+  const handleFinishProfessional = async () => {
+    if (!specialty || !availability) {
+      Alert.alert('Faltan datos', 'Selecciona tu especialidad y disponibilidad.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.post('/v2/user-profile', {
+        specialty, availability,
+        rate_info: rateInfo || null,
+        age: null, sex: null, activity_level: null, weight_kg: null,
+        height_cm: null, waist_cm: null, neck_cm: null,
+        experience_level: null, goal: null, injuries: null,
+      });
+      // Guardar especialista IA seleccionado (solo trainers)
+      if (aiSpecialist) {
+        await api.post('/v2/trainer/ai-specialist', { ai_specialist: aiSpecialist });
+      }
+      onComplete();
+    } catch (err) {
+      Alert.alert('Error', 'No se pudo guardar tu perfil. Inténtalo de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const SelectorButton = ({ label, selected, onPress }) => (
     <TouchableOpacity
       style={[styles.optionBtn, selected && styles.optionBtnActive]}
       onPress={onPress}
@@ -70,6 +148,135 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
     </TouchableOpacity>
   );
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // FLUJO PROFESIONAL (Entrenador / Nutricionista)
+  // ══════════════════════════════════════════════════════════════════════════
+  if (isProfessional) {
+    const isTrainer = userRole === 'trainer';
+    const especialidades = isTrainer ? ESPECIALIDADES_TRAINER : ESPECIALIDADES_NUTRI;
+    const rolLabel = isTrainer ? 'Entrenador' : 'Nutricionista';
+    const rolEmoji = isTrainer ? '🏋️' : '🥗';
+    const totalSteps = isTrainer ? 3 : 2;
+
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.title}>⚡ PowerBud</Text>
+        <Text style={styles.subtitle}>
+          {isEditing
+            ? `Actualiza tu perfil profesional ${rolEmoji}`
+            : `Configura tu perfil de ${rolLabel} para comenzar a administrar asesorados`}
+        </Text>
+        {isEditing && onCancel && (
+          <TouchableOpacity style={styles.cancelTopBtn} onPress={onCancel}>
+            <Text style={styles.cancelTopBtnText}>✕ Cancelar</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* PASO 1: Especialidad profesional */}
+        {step === 1 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{rolEmoji} Paso 1 / {totalSteps} — Tu Especialidad</Text>
+            <Text style={styles.cardDesc}>Esta información aparecerá en tu perfil público para que los usuarios te encuentren.</Text>
+
+            <Text style={styles.label}>Especialidad principal *</Text>
+            <View style={styles.column}>
+              {especialidades.map(e => (
+                <SelectorButton key={e} label={e} selected={specialty === e} onPress={() => setSpecialty(e)} />
+              ))}
+            </View>
+
+            <TouchableOpacity style={[styles.nextBtn, { marginTop: 24 }]} onPress={() => {
+              if (!specialty) { Alert.alert('Selecciona tu especialidad', 'Elige la que mejor describe tu perfil.'); return; }
+              setStep(2);
+            }}>
+              <Text style={styles.nextBtnText}>Siguiente →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* PASO 2 TRAINER: Asistente IA */}
+        {step === 2 && isTrainer && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>🤖 Paso 2 / {totalSteps} — Asistente IA</Text>
+            <Text style={styles.cardDesc}>
+              Selecciona qué tipo de asistente de IA quieres que genere los planes para tus asesorados.
+              Puedes cambiarlo en cualquier momento desde tu perfil.
+            </Text>
+
+            <Text style={styles.label}>Tipo de asistente IA *</Text>
+            {AI_SPECIALISTS.map(s => (
+              <TouchableOpacity
+                key={s.key}
+                style={[styles.specialistCard, aiSpecialist === s.key && styles.specialistCardActive]}
+                onPress={() => setAiSpecialist(s.key)}
+              >
+                <View style={styles.specialistRow}>
+                  <Text style={[styles.specialistLabel, aiSpecialist === s.key && styles.specialistLabelActive]}>
+                    {s.label}
+                  </Text>
+                  {aiSpecialist === s.key && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={[styles.specialistDesc, aiSpecialist === s.key && styles.specialistDescActive]}>
+                  {s.desc}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.navRow}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
+                <Text style={styles.backBtnText}>← Atrás</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.nextBtn} onPress={() => {
+                if (!aiSpecialist) { Alert.alert('Selecciona un asistente', 'Elige el tipo de IA que mejor se adapte a tu metodología.'); return; }
+                setStep(3);
+              }}>
+                <Text style={styles.nextBtnText}>Siguiente →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* PASO 2 NUTRI / PASO 3 TRAINER: Disponibilidad y tarifa */}
+        {((step === 2 && !isTrainer) || (step === 3 && isTrainer)) && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{rolEmoji} Paso {isTrainer ? 3 : 2} / {totalSteps} — Disponibilidad y Tarifa</Text>
+            <Text style={styles.cardDesc}>Ayuda a tus futuros asesorados a saber cuándo y cómo trabajar contigo.</Text>
+
+            <Text style={styles.label}>Disponibilidad *</Text>
+            <View style={styles.column}>
+              {DISPONIBILIDAD.map(d => (
+                <SelectorButton key={d} label={d} selected={availability === d} onPress={() => setAvailability(d)} />
+              ))}
+            </View>
+
+            <Text style={styles.label}>Tarifa (opcional — puedes dejarlo "A convenir")</Text>
+            <TextInput
+              style={styles.input}
+              placeholder='Ej: $120.000/mes · A convenir'
+              placeholderTextColor="#444"
+              value={rateInfo}
+              onChangeText={setRateInfo}
+            />
+
+            <View style={styles.navRow}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => setStep(isTrainer ? 2 : 1)}>
+                <Text style={styles.backBtnText}>← Atrás</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.finishBtn} onPress={handleFinishProfessional} disabled={loading}>
+                {loading
+                  ? <ActivityIndicator color="#18181b" />
+                  : <Text style={styles.finishBtnText}>{isEditing ? '💾 Guardar' : '¡Listo! ⚡'}</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FLUJO CLIENTE (original, 3 pasos)
+  // ══════════════════════════════════════════════════════════════════════════
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>⚡ Powerbud</Text>
@@ -92,7 +299,7 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
 
           <Text style={styles.label}>Sexo *</Text>
           <View style={styles.row}>
-            {SEXOS.map(s => <SelectorButton key={s} label={s} value={s} selected={sex === s} onPress={() => setSex(s)} />)}
+            {SEXOS.map(s => <SelectorButton key={s} label={s} selected={sex === s} onPress={() => setSex(s)} />)}
           </View>
 
           <Text style={styles.label}>Peso (kg) *</Text>
@@ -123,12 +330,12 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
 
           <Text style={styles.label}>Nivel de actividad física *</Text>
           <View style={styles.column}>
-            {ACTIVIDADES.map(a => <SelectorButton key={a} label={a} value={a} selected={activityLevel === a} onPress={() => setActivityLevel(a)} />)}
+            {ACTIVIDADES.map(a => <SelectorButton key={a} label={a} selected={activityLevel === a} onPress={() => setActivityLevel(a)} />)}
           </View>
 
           <Text style={styles.label}>Experiencia en el gym *</Text>
           <View style={styles.row}>
-            {EXPERIENCIAS.map(e => <SelectorButton key={e} label={e} value={e} selected={experienceLevel === e} onPress={() => setExperienceLevel(e)} />)}
+            {EXPERIENCIAS.map(e => <SelectorButton key={e} label={e} selected={experienceLevel === e} onPress={() => setExperienceLevel(e)} />)}
           </View>
 
           <View style={styles.navRow}>
@@ -152,7 +359,7 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
 
           <Text style={styles.label}>¿Cuál es tu objetivo principal? *</Text>
           <View style={styles.column}>
-            {OBJETIVOS.map(o => <SelectorButton key={o} label={o} value={o} selected={goal === o} onPress={() => setGoal(o)} />)}
+            {OBJETIVOS.map(o => <SelectorButton key={o} label={o} selected={goal === o} onPress={() => setGoal(o)} />)}
           </View>
 
           <Text style={styles.label}>Lesiones o limitaciones físicas (opcional)</Text>
@@ -185,7 +392,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 38, fontWeight: 'bold', color: '#39ff14', textAlign: 'center', textShadowColor: '#ff00c8', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 },
   subtitle: { fontSize: 15, color: '#00eaff', textAlign: 'center', marginTop: 10, marginBottom: 30, lineHeight: 22, textShadowColor: '#fffb00', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 4 },
   card: { backgroundColor: '#232946', borderRadius: 15, padding: 20, shadowColor: '#ff00c8', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#ff00c8', marginBottom: 20, textShadowColor: '#fffb00', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#ff00c8', marginBottom: 8, textShadowColor: '#fffb00', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
+  cardDesc: { fontSize: 13, color: '#aaa', marginBottom: 16, lineHeight: 20 },
   cancelTopBtn: { alignSelf: 'flex-end', marginBottom: 10, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#ff00c8' },
   cancelTopBtnText: { color: '#ff00c8', fontWeight: 'bold', fontSize: 13 },
   label: { fontSize: 14, fontWeight: '600', color: '#39ff14', marginBottom: 8, marginTop: 12, textShadowColor: '#ff00c8', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 2 },
@@ -203,4 +411,12 @@ const styles = StyleSheet.create({
   backBtnText: { color: '#00eaff', fontWeight: 'bold', fontSize: 15 },
   finishBtn: { backgroundColor: '#39ff14', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', shadowColor: '#39ff14', shadowOpacity: 0.7, shadowRadius: 8, elevation: 2 },
   finishBtnText: { color: '#18181b', fontWeight: 'bold', fontSize: 16 },
+  specialistCard: { backgroundColor: '#18181b', borderWidth: 1, borderColor: '#00eaff', borderRadius: 10, padding: 12, marginBottom: 8 },
+  specialistCardActive: { borderColor: '#39ff14', backgroundColor: '#0d2218', shadowColor: '#39ff14', shadowOpacity: 0.5, shadowRadius: 8, elevation: 3 },
+  specialistRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  specialistLabel: { fontSize: 14, fontWeight: 'bold', color: '#00eaff', flex: 1 },
+  specialistLabelActive: { color: '#39ff14' },
+  specialistDesc: { fontSize: 12, color: '#666', marginTop: 4, lineHeight: 17 },
+  specialistDescActive: { color: '#aaa' },
+  checkmark: { color: '#39ff14', fontSize: 18, fontWeight: 'bold', marginLeft: 8 },
 });

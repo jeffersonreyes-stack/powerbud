@@ -208,6 +208,12 @@ async function initDb() {
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g REAL DEFAULT 100`);
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_label VARCHAR(20) DEFAULT 'g'`);
 
+    // Columnas de perfil profesional para entrenadores y nutricionistas
+    await client.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS specialty VARCHAR(255)`);
+    await client.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS availability TEXT`);
+    await client.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS rate_info VARCHAR(255)`);
+    await client.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ai_specialist VARCHAR(100)`);
+
     // Columna para marcar registros generados automáticamente por la IA (nunca registrados manualmente)
     await client.query(`ALTER TABLE workouts ADD COLUMN IF NOT EXISTS is_ai_generated BOOLEAN DEFAULT FALSE`);
 

@@ -60,18 +60,19 @@ app.get('/api/v2/user-profile', authenticateToken, async (req, res) => {
 
 app.post('/api/v2/user-profile', authenticateToken, async (req, res) => {
   try {
-    const { age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries } = req.body;
+    const { age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries, specialty, availability, rate_info } = req.body;
     const userId = req.user.id;
     const sql = `
-      INSERT INTO user_profiles (user_id, age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries, updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
+      INSERT INTO user_profiles (user_id, age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries, specialty, availability, rate_info, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())
       ON CONFLICT (user_id) DO UPDATE SET
         age = EXCLUDED.age, sex = EXCLUDED.sex, activity_level = EXCLUDED.activity_level,
         weight_kg = EXCLUDED.weight_kg, height_cm = EXCLUDED.height_cm, waist_cm = EXCLUDED.waist_cm,
         neck_cm = EXCLUDED.neck_cm, experience_level = EXCLUDED.experience_level, goal = EXCLUDED.goal,
-        injuries = EXCLUDED.injuries, updated_at = NOW()
+        injuries = EXCLUDED.injuries, specialty = EXCLUDED.specialty, availability = EXCLUDED.availability,
+        rate_info = EXCLUDED.rate_info, updated_at = NOW()
       RETURNING *`;
-    const result = await pgDb.query(sql, [userId, age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries || null]);
+    const result = await pgDb.query(sql, [userId, age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries || null, specialty || null, availability || null, rate_info || null]);
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Error guardando perfil:', err);
@@ -122,11 +123,32 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
         return res.status(403).json({ error: 'Tu cuenta de entrenador aún no ha sido verificada. Sube tu certificado para usar el Asistente Virtual.' });
       }
 
-      if (!req.body.clientProfile || !req.body.client_id) {
-        return res.status(400).json({ error: 'Como entrenador, debes enviar el perfil del cliente (clientProfile) y su ID (client_id).' });
+      if (!req.body.client_id) {
+        return res.status(400).json({ error: 'Como entrenador, debes enviar el ID del cliente (client_id).' });
       }
-      clientProfile = req.body.clientProfile;
       targetClientIdForTrainer = req.body.client_id;
+      // Si el entrenador envía clientProfile, usarlo; sino, leerlo de la DB automáticamente
+      if (req.body.clientProfile) {
+        clientProfile = req.body.clientProfile;
+      } else {
+        const cProfileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [req.body.client_id]);
+        const cp = cProfileRes.rows[0] || {};
+        const cMetricsRes = await pgDb.query('SELECT weight_kg, height_cm, notes FROM body_metrics WHERE user_id = $1 ORDER BY date DESC LIMIT 1', [req.body.client_id]);
+        const cm = cMetricsRes.rows[0] || {};
+        clientProfile = {
+          age: cp.age || 'No especificada',
+          sex: cp.sex || 'No especificado',
+          weight_kg: cp.weight_kg || cm.weight_kg || 'No especificado',
+          height_cm: cp.height_cm || cm.height_cm || 'No especificada',
+          waist_cm: cp.waist_cm || 'No especificada',
+          neck_cm: cp.neck_cm || 'No especificado',
+          activity_level: cp.activity_level || 'Moderado',
+          goal: cp.goal || 'Mejora de la condición física',
+          days_per_week: 3,
+          experience_level: cp.experience_level || 'Principiante',
+          injuries: cp.injuries || cm.notes || 'Ninguna reportada',
+        };
+      }
     }
 
     // Consultar historial de progreso del usuario para enriquecer el prompt
@@ -178,9 +200,25 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
       }
     };
 
+    // Resolver trainerContext: especialista IA + instrucciones del entrenador
+    let trainerContext = {};
+    if (req.user.role === 'trainer') {
+      const tProfileRes = await pgDb.query('SELECT specialty, ai_specialist FROM user_profiles WHERE user_id = $1', [userId]);
+      const tProfile = tProfileRes.rows[0] || {};
+      const tUserRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);
+      trainerContext = {
+        ai_specialist: tProfile.ai_specialist || null,
+        trainer_instructions: req.body.trainer_instructions || null,
+        trainer_name: tUserRes.rows[0]?.name || tUserRes.rows[0]?.email || null,
+      };
+    } else if (req.user.role === 'client') {
+      // Cliente puede pasar instrucciones opcionales
+      trainerContext = { trainer_instructions: req.body.trainer_instructions || null };
+    }
+
     // Llamamos a PowerBud A.I. (Gemini) usando los datos recolectados
-    console.log('Generando rutina PowerBud A.I. con Gemini. Objetivo:', clientProfile.goal);
-    const workoutPlan = await aiService.generateWorkoutPlan(clientProfile, progressData);
+    console.log('Generando rutina PowerBud A.I. Objetivo:', clientProfile.goal, '| Especialista:', trainerContext.ai_specialist || 'auto');
+    const workoutPlan = await aiService.generateWorkoutPlan(clientProfile, progressData, trainerContext);
 
     // El plan de IA se guarda SOLO en workout_plans como JSON.
     // La tabla workouts es exclusivamente para registros manuales del usuario.
@@ -216,6 +254,34 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error en PowerBud A.I.:', error);
     res.status(500).json({ error: 'Hubo un problema al contactar a la Inteligencia Artificial. Inténtalo más tarde.' });
+  }
+});
+
+// Catálogo de especialistas IA disponibles (para dropdown en UI)
+app.get('/api/v2/ai/specialists', authenticateToken, async (req, res) => {
+  const { AI_SPECIALISTS } = require('./ai');
+  const list = Object.entries(AI_SPECIALISTS).map(([key, val]) => ({
+    key,
+    label: val.label,
+    methodology_summary: val.methodology.split('.')[0] + '.', // primera oración
+  }));
+  res.json(list);
+});
+
+// Guardar especialista IA seleccionado por el entrenador
+app.post('/api/v2/trainer/ai-specialist', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'trainer' && req.user.role !== 'nutritionist') {
+    return res.status(403).json({ error: 'Solo entrenadores pueden configurar esto' });
+  }
+  const { ai_specialist } = req.body;
+  try {
+    await pgDb.query(
+      `UPDATE user_profiles SET ai_specialist = $1 WHERE user_id = $2`,
+      [ai_specialist || null, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo guardar la preferencia' });
   }
 });
 
