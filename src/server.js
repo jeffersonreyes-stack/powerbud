@@ -275,14 +275,29 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
     const profileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [userId]);
     const profile = profileRes.rows[0] || {};
 
-    // Obtener resumen del último workout generado
-    const workoutRes = await pgDb.query(
-      `SELECT exercise FROM workouts WHERE client_id = $1 ORDER BY date DESC LIMIT 10`,
+    // Obtener el plan de mesociclo guardado (objetivo, estructura semanal)
+    const workoutPlanRes = await pgDb.query(
+      'SELECT plan_json FROM workout_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
       [userId]
     );
-    const workoutSummary = workoutRes.rows.length > 0
-      ? workoutRes.rows.map(r => r.exercise).join(', ')
-      : null;
+    const savedPlan = workoutPlanRes.rows.length > 0 ? workoutPlanRes.rows[0].plan_json : null;
+
+    // Obtener registros reales de entrenamiento (últimas 3 semanas)
+    const workoutLogsRes = await pgDb.query(
+      `SELECT date::text, exercise, weight, reps, (weight * reps) as volumen
+       FROM workouts WHERE client_id = $1
+       AND date >= CURRENT_DATE - INTERVAL '21 days'
+       ORDER BY date DESC, exercise ASC LIMIT 40`,
+      [userId]
+    );
+
+    // Construir objeto de entrenamiento para el prompt
+    const workoutContext = {
+      mesocycleGoal: savedPlan?.workout_plan?.goal || null,
+      progressionNotes: savedPlan?.workout_plan?.progression_notes || null,
+      trainingDays: savedPlan?.workout_plan?.days?.map(d => `${d.focus} (${d.exercises?.map(e => e.name).join(', ')})`).join(' | ') || null,
+      recentLogs: workoutLogsRes.rows,
+    };
 
     // Consultar historial nutricional real de los últimos 7 días
     const mealHistoryRes = await pgDb.query(
@@ -302,7 +317,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       avgProtein: mealRows.length > 0 ? (mealRows.reduce((s, r) => s + Number(r.protein_g), 0) / mealRows.length).toFixed(1) : null,
     };
 
-    const dietPlan = await aiService.generateDietPlan(profile, workoutSummary, nutritionHistory);
+    const dietPlan = await aiService.generateDietPlan(profile, workoutContext, nutritionHistory);
 
     // Guardar en DB
     await pgDb.query(

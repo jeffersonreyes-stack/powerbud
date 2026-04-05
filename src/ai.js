@@ -111,7 +111,7 @@ const aiService = {
     }
   },
 
-  async generateDietPlan(clientProfile, workoutSummary, nutritionHistory = {}) {
+  async generateDietPlan(clientProfile, workoutContext = {}, nutritionHistory = {}) {
     try {
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
@@ -143,8 +143,15 @@ ${nutritionHistory.dailySummary && nutritionHistory.dailySummary.length > 0
 ${nutritionHistory.avgCalories ? `Promedio consumido: ${nutritionHistory.avgCalories} kcal/día, proteína ${nutritionHistory.avgProtein}g/día` : ''}
 IMPORTANTE: Si el historial muestra déficit de proteína o exceso de calorías, ajusta el plan para corregir esos hábitos específicamente. Si no hay registros, diseña el plan desde cero.
 
-RUTINA ACTUAL:
-${workoutSummary || 'Entrenamiento de fuerza e hipertrofia 4 días/semana'}
+RUTINA DE ENTRENAMIENTO:
+Objetivo del mesociclo: ${workoutContext.mesocycleGoal || 'No especificado'}
+Estructura semanal: ${workoutContext.trainingDays || 'No disponible'}
+Notas de progresión: ${workoutContext.progressionNotes || 'No disponible'}
+${workoutContext.recentLogs && workoutContext.recentLogs.length > 0
+  ? `Registros reales de entrenamientos (últimas 3 semanas, más reciente primero):
+${workoutContext.recentLogs.slice(0, 20).map(l => `  ${l.date} — ${l.exercise}: ${l.weight}kg x ${l.reps} reps (volumen: ${Math.round(l.volumen)})`).join('\n')}`
+  : 'Sin registros de entrenamiento aún.'}
+IMPORTANTE: Usa el objetivo del mesociclo y los días de entrenamiento para calcular las necesidades calóricas y de macros correctamente. En días de entrenamiento de fuerza/hipertrofia, aumenta carbohidratos y proteína. Adapta la ingesta calórica según la intensidad registrada en los logs reales.
 
 INSTRUCCIONES:
 1. Usa EXCLUSIVAMENTE alimentos comunes y accesibles en Colombia (arroz, frijoles, plátano, papa, aguacate, pollo, carne, huevos, leche, queso, frutas tropicales, etc.)
