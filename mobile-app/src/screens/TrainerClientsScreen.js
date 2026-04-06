@@ -11,17 +11,24 @@ export default function TrainerClientsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState('unverified');
   const [uploadingCert, setUploadingCert] = useState(false);
+  const [myRole, setMyRole] = useState('trainer');
 
   // Invitar
   const [newClientEmail, setNewClientEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
 
-  // Modal generación IA
+  // Modal rutina IA (trainer)
   const [aiModalVisible, setAiModalVisible] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [trainerInstructions, setTrainerInstructions] = useState('');
   const [generating, setGenerating] = useState(false);
+
+  // Modal dieta IA (nutricionista)
+  const [dietModalVisible, setDietModalVisible] = useState(false);
+  const [dietClient, setDietClient] = useState(null);
+  const [nutriInstructions, setNutriInstructions] = useState('');
+  const [generatingDiet, setGeneratingDiet] = useState(false);
 
   useEffect(() => {
     checkVerificationAndFetch();
@@ -31,6 +38,7 @@ export default function TrainerClientsScreen({ navigation }) {
     try {
       const profileRes = await api.get('/profile');
       setVerificationStatus(profileRes.data.verification_status || 'unverified');
+      setMyRole(profileRes.data.role || 'trainer');
       if (profileRes.data.verification_status === 'verified') {
         const response = await api.get('/v2/relations/trainer/clients');
         setClients(response.data);
@@ -156,14 +164,24 @@ export default function TrainerClientsScreen({ navigation }) {
         <Text style={styles.clientMeta}>🏋️ Última sesión: {item.last_workout}</Text>
       ) : null}
 
-      {/* Acciones */}
+      {/* Acciones por rol */}
       <View style={styles.cardActions}>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.aiBtn]}
-          onPress={() => openAiModal(item)}
-        >
-          <Text style={styles.aiBtnText}>⚡ Generar Rutina IA</Text>
-        </TouchableOpacity>
+        {myRole === 'trainer' && (
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.aiBtn]}
+            onPress={() => openAiModal(item)}
+          >
+            <Text style={styles.aiBtnText}>⚡ Rutina IA</Text>
+          </TouchableOpacity>
+        )}
+        {myRole === 'nutritionist' && (
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.dietBtn]}
+            onPress={() => openDietModal(item)}
+          >
+            <Text style={styles.dietBtnText}>🥗 Dieta IA</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -274,7 +292,7 @@ export default function TrainerClientsScreen({ navigation }) {
         }
       />
 
-      {/* Modal generación IA */}
+      {/* Modal rutina IA (trainer) */}
       <Modal visible={aiModalVisible} transparent animationType="slide" onRequestClose={() => setAiModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalBox}>
@@ -296,7 +314,6 @@ export default function TrainerClientsScreen({ navigation }) {
             <Text style={styles.modalHint}>
               Si no escribes nada, la IA usará tu especialidad y el perfil del cliente automáticamente.
             </Text>
-
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setAiModalVisible(false)} disabled={generating}>
                 <Text style={styles.cancelBtnText}>Cancelar</Text>
@@ -305,6 +322,42 @@ export default function TrainerClientsScreen({ navigation }) {
                 {generating
                   ? <ActivityIndicator color="#18181b" />
                   : <Text style={styles.generateBtnText}>Generar Rutina</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal dieta IA (nutricionista) */}
+      <Modal visible={dietModalVisible} transparent animationType="slide" onRequestClose={() => setDietModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={[styles.modalTitle, { color: '#00eaff' }]}>🥗 Generar Dieta IA</Text>
+            {dietClient && (
+              <Text style={styles.modalSubtitle}>Para: {dietClient.email}</Text>
+            )}
+            <Text style={styles.modalLabel}>Instrucciones especiales (opcional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Ej: Evitar lácteos, dieta alta en proteína, objetivo pérdida de grasa, menú vegano..."
+              placeholderTextColor="#555"
+              value={nutriInstructions}
+              onChangeText={setNutriInstructions}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <Text style={styles.modalHint}>
+              Si no escribes nada, la IA usará tu especialización nutricional y el perfil del cliente automáticamente.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setDietModalVisible(false)} disabled={generatingDiet}>
+                <Text style={styles.cancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.generateBtn, { backgroundColor: '#00eaff' }]} onPress={generateAiDiet} disabled={generatingDiet}>
+                {generatingDiet
+                  ? <ActivityIndicator color="#18181b" />
+                  : <Text style={styles.generateBtnText}>Generar Dieta</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -360,6 +413,8 @@ const styles = StyleSheet.create({
   actionBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
   aiBtn: { backgroundColor: '#39ff14', shadowColor: '#39ff14', shadowOpacity: 0.5, shadowRadius: 6, elevation: 2 },
   aiBtnText: { color: '#18181b', fontWeight: 'bold', fontSize: 13 },
+  dietBtn: { backgroundColor: '#00eaff', shadowColor: '#00eaff', shadowOpacity: 0.5, shadowRadius: 6, elevation: 2 },
+  dietBtnText: { color: '#18181b', fontWeight: 'bold', fontSize: 13 },
 
   // Empty state
   emptyBox: { alignItems: 'center', marginTop: 60 },
