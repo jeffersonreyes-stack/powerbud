@@ -44,6 +44,96 @@ function parseLocaleNumber(value) {
 app.post('/api/auth/register', authController.register);
 app.post('/api/auth/login', authController.login);
 
+// Reset de contraseña — paso 1: solicitar enlace
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email requerido.' });
+
+  try {
+    const result = await pgDb.query('SELECT id, name, email FROM users WHERE email = $1', [email]);
+    // Siempre respondemos igual para no revelar si el email existe
+    if (!result.rows.length) {
+      return res.json({ message: 'Si ese correo está registrado, recibirás un enlace en breve.' });
+    }
+    const user = result.rows[0];
+    const jwtLib = require('jsonwebtoken');
+    const secret = process.env.JWT_SECRET || 'powerbud-secret-key-dev-only';
+    const resetToken = jwtLib.sign({ userId: user.id, purpose: 'password_reset' }, secret, { expiresIn: '1h' });
+
+    const { sendPasswordReset } = require('./mailer');
+    await sendPasswordReset({ userEmail: user.email, userName: user.name || user.email, resetToken });
+
+    res.json({ message: 'Si ese correo está registrado, recibirás un enlace en breve.' });
+  } catch (err) {
+    console.error('[forgot-password]', err);
+    res.status(500).json({ error: 'Error interno.' });
+  }
+});
+
+// Reset de contraseña — paso 2a: página HTML con formulario
+app.get('/api/v2/auth/reset-password-page', (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).send('<p>Token inválido.</p>');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Powerbud — Nueva contraseña</title></head>
+<body style="font-family:Arial,sans-serif;background:#0f0f1a;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+<div style="background:#1a1a2e;color:#e2e8f0;border-radius:12px;padding:40px;max-width:400px;width:90%;">
+  <h2 style="color:#f59e0b;">🔐 Nueva contraseña</h2>
+  <form method="POST" action="/api/v2/auth/reset-password">
+    <input type="hidden" name="token" value="${token}" />
+    <label style="display:block;margin-bottom:8px;color:#94a3b8;">Nueva contraseña</label>
+    <input type="password" name="password" required minlength="6"
+      style="width:100%;padding:12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#fff;font-size:16px;box-sizing:border-box;margin-bottom:16px;" />
+    <label style="display:block;margin-bottom:8px;color:#94a3b8;">Confirmar contraseña</label>
+    <input type="password" name="confirm" required minlength="6"
+      style="width:100%;padding:12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#fff;font-size:16px;box-sizing:border-box;margin-bottom:24px;" />
+    <button type="submit"
+      style="width:100%;padding:14px;background:#f59e0b;color:#0f0f1a;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">
+      Guardar nueva contraseña
+    </button>
+  </form>
+</div>
+</body></html>`);
+});
+
+// Reset de contraseña — paso 2b: procesar formulario
+app.post('/api/v2/auth/reset-password', express.urlencoded({ extended: false }), async (req, res) => {
+  const { token, password, confirm } = req.body || {};
+  const fail = (msg) => res.status(400).send(`<!DOCTYPE html><html><body style="font-family:Arial;background:#0f0f1a;color:#ef4444;display:flex;align-items:center;justify-content:center;min-height:100vh;"><div style="text-align:center"><h2>${msg}</h2><a href="javascript:history.back()" style="color:#f59e0b;">← Volver</a></div></body></html>`);
+
+  if (!token || !password || !confirm) return fail('Faltan campos.');
+  if (password !== confirm) return fail('Las contraseñas no coinciden.');
+  if (password.length < 6) return fail('La contraseña debe tener al menos 6 caracteres.');
+
+  let payload;
+  try {
+    const jwtLib = require('jsonwebtoken');
+    payload = jwtLib.verify(token, process.env.JWT_SECRET || 'powerbud-secret-key-dev-only');
+  } catch {
+    return fail('El enlace expiró o es inválido. Solicita uno nuevo desde la app.');
+  }
+
+  if (payload.purpose !== 'password_reset') return fail('Token no válido.');
+
+  try {
+    const bcryptLib = require('bcrypt');
+    const hashed = await bcryptLib.hash(password, 10);
+    await pgDb.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashed, payload.userId]);
+    res.send(`<!DOCTYPE html><html><body style="font-family:Arial;background:#0f0f1a;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+<div style="background:#1a1a2e;color:#e2e8f0;border-radius:12px;padding:40px;max-width:400px;text-align:center;">
+  <div style="font-size:56px;">✅</div>
+  <h2 style="color:#4ade80;">Contraseña actualizada</h2>
+  <p style="color:#94a3b8;">Ya puedes iniciar sesión con tu nueva contraseña desde la app.</p>
+  <p style="color:#6366f1;font-weight:bold;">Powerbud</p>
+</div></body></html>`);
+  } catch (err) {
+    console.error('[reset-password]', err);
+    return fail('Error interno. Intenta de nuevo.');
+  }
+});
+
 // Verificación de email (link enviado al registrarse)
 app.get('/api/v2/auth/verify-email', async (req, res) => {
   const { token } = req.query;

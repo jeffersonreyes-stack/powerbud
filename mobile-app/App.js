@@ -12,6 +12,7 @@ import api from './src/api';
 // Pantallas
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import DietScreen from './src/screens/DietScreen';
@@ -193,6 +194,7 @@ export default function App() {
               }} />}
             </Stack.Screen>
             <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </Stack.Navigator>
         ) : needsOnboarding ? (
           <OnboardingScreen onComplete={() => setNeedsOnboarding(false)} userRole={userRole} />

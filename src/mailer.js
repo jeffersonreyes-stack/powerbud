@@ -102,7 +102,39 @@ async function sendVerificationResultEmail({ userEmail, userName, role, approved
     });
 }
 
-module.exports = { sendCertificateApprovalEmail, sendVerificationResultEmail, sendWelcomeEmail, sendEmailVerification };
+module.exports = { sendCertificateApprovalEmail, sendVerificationResultEmail, sendWelcomeEmail, sendEmailVerification, sendPasswordReset };
+
+/**
+ * Envía email con enlace para resetear la contraseña (expira en 1h).
+ */
+async function sendPasswordReset({ userEmail, userName, resetToken }) {
+    const resetUrl = `${API_BASE}/api/v2/auth/reset-password-page?token=${resetToken}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#0f0f1a;padding:20px;">
+<div style="background:#1a1a2e;color:#e2e8f0;border-radius:12px;padding:36px;max-width:520px;margin:auto;">
+  <h1 style="color:#f59e0b;font-size:26px;">Restablecer contraseña 🔐</h1>
+  <p>Hola <strong>${userName}</strong>, recibimos una solicitud para restablecer la contraseña de tu cuenta en Powerbud.</p>
+  <p>Este enlace es válido por <strong>1 hora</strong>. Si no lo solicitaste, ignora este mensaje.</p>
+  <p style="text-align:center;margin:32px 0;">
+    <a href="${resetUrl}" style="background:#f59e0b;color:#0f0f1a;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none;">
+      🔑 Restablecer contraseña
+    </a>
+  </p>
+  <p style="color:#64748b;font-size:13px;">Si no pediste esto, tu cuenta está segura.</p>
+</div>
+</body>
+</html>`;
+
+    await resend.emails.send({
+        from: FROM_EMAIL,
+        to: userEmail,
+        subject: '[Powerbud] Restablecer tu contraseña',
+        html
+    });
+}
 
 /**
  * Envía email de verificación de cuenta (link expira en 24h).
