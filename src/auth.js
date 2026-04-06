@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('./pg-database'); // Conexión a PostgreSQL
+const { sendEmailVerification } = require('./mailer');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'powerbud-secret-key-dev-only'; // En producción esto será seguro
 
@@ -55,12 +56,27 @@ const authController = {
 
       // Guardar usuario
       const trimmedName = typeof name === 'string' ? name.trim() : null;
+      const verifiedExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
       const result = await db.query(
-        'INSERT INTO users (email, password_hash, role, name) VALUES ($1, $2, $3, $4) RETURNING id, email, role, name',
-        [email, hashedPassword, role, trimmedName]
+        'INSERT INTO users (email, password_hash, role, name, email_verified, email_verified_expires) VALUES ($1, $2, $3, $4, FALSE, $5) RETURNING id, email, role, name',
+        [email, hashedPassword, role, trimmedName, verifiedExpires]
       );
 
-      res.status(201).json({ message: 'Usuario creado exitosamente', user: result.rows[0] });
+      const newUser = result.rows[0];
+
+      // Enviar email de verificación
+      try {
+        const verifyToken = jwt.sign({ userId: newUser.id, purpose: 'email_verify' }, JWT_SECRET, { expiresIn: '24h' });
+        await sendEmailVerification({
+          userEmail: newUser.email,
+          userName: newUser.name || newUser.email,
+          verifyToken
+        });
+      } catch (mailErr) {
+        console.error('[auth] Error enviando email de verificación:', mailErr.message);
+      }
+
+      res.status(201).json({ message: 'Usuario creado. Revisa tu correo para verificar tu cuenta.', user: newUser });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Error del servidor al registrar' });
@@ -84,6 +100,15 @@ const authController = {
       const validPassword = await bcrypt.compare(password, user.password_hash);
       if (!validPassword) {
         return res.status(401).json({ error: 'Credenciales inválidas' });
+      }
+
+      // Bloquear si no verificó el email
+      if (!user.email_verified) {
+        const expired = user.email_verified_expires && new Date(user.email_verified_expires) < new Date();
+        if (expired) {
+          return res.status(403).json({ error: 'Tu cuenta fue suspendida por no verificar el correo. Regístrate de nuevo.' });
+        }
+        return res.status(403).json({ error: 'Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.' });
       }
 
       // Generar Token JWT (Válido por 7 días)

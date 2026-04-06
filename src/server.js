@@ -44,6 +44,50 @@ function parseLocaleNumber(value) {
 app.post('/api/auth/register', authController.register);
 app.post('/api/auth/login', authController.login);
 
+// Verificación de email (link enviado al registrarse)
+app.get('/api/v2/auth/verify-email', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).send(renderVerifyPage('Token no proporcionado', false));
+
+  let payload;
+  try {
+    payload = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'powerbud-secret-key-dev-only');
+  } catch {
+    return res.status(400).send(renderVerifyPage('El link expiró o es inválido. Por favor regístrate de nuevo.', false));
+  }
+
+  if (payload.purpose !== 'email_verify') {
+    return res.status(400).send(renderVerifyPage('Token no válido.', false));
+  }
+
+  try {
+    const result = await pgDb.query(
+      'UPDATE users SET email_verified = TRUE WHERE id = $1 AND email_verified = FALSE RETURNING email, name',
+      [payload.userId]
+    );
+    if (!result.rows.length) {
+      return res.send(renderVerifyPage('Esta cuenta ya fue verificada anteriormente.', true));
+    }
+    return res.send(renderVerifyPage(`¡Listo! Tu correo <strong>${result.rows[0].email}</strong> fue verificado. Ya puedes iniciar sesión en Powerbud.`, true));
+  } catch (err) {
+    console.error('[verify-email]', err);
+    return res.status(500).send(renderVerifyPage('Error interno. Intenta de nuevo.', false));
+  }
+});
+
+function renderVerifyPage(message, success) {
+  const color = success ? '#4ade80' : '#ef4444';
+  const icon  = success ? '✅' : '❌';
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Powerbud</title></head>
+<body style="font-family:Arial,sans-serif;background:#0f0f1a;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+<div style="background:#1a1a2e;color:#e2e8f0;border-radius:12px;padding:40px;max-width:480px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.4);">
+  <div style="font-size:56px;">${icon}</div>
+  <h1 style="color:${color};">${success ? 'Correo verificado' : 'Error de verificación'}</h1>
+  <p style="color:#94a3b8;">${message}</p>
+  <p style="color:#6366f1;font-weight:bold;margin-top:24px;">Powerbud</p>
+</div></body></html>`;
+}
+
 // Rutas protegidas de perfil (Cualquier usuario logueado)
 app.get('/api/profile', authenticateToken, authController.getProfile);
 

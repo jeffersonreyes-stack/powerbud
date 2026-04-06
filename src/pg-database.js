@@ -205,6 +205,8 @@ async function initDb() {
     `);
 
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_expires TIMESTAMP WITH TIME ZONE`);
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g REAL DEFAULT 100`);
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_label VARCHAR(20) DEFAULT 'g'`);
 

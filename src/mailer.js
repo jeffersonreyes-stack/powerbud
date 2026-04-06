@@ -102,4 +102,74 @@ async function sendVerificationResultEmail({ userEmail, userName, role, approved
     });
 }
 
-module.exports = { sendCertificateApprovalEmail, sendVerificationResultEmail };
+module.exports = { sendCertificateApprovalEmail, sendVerificationResultEmail, sendWelcomeEmail, sendEmailVerification };
+
+/**
+ * Envía email de verificación de cuenta (link expira en 24h).
+ */
+async function sendEmailVerification({ userEmail, userName, verifyToken }) {
+    const verifyUrl = `${API_BASE}/api/v2/auth/verify-email?token=${verifyToken}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#0f0f1a;padding:20px;">
+<div style="background:#1a1a2e;color:#e2e8f0;border-radius:12px;padding:36px;max-width:520px;margin:auto;">
+  <h1 style="color:#4ade80;font-size:26px;">Verifica tu correo 📧</h1>
+  <p>Hola <strong>${userName}</strong>, gracias por registrarte en <strong>Powerbud</strong>.</p>
+  <p>Tienes <strong>24 horas</strong> para verificar tu correo. Si no lo haces, tu cuenta será suspendida.</p>
+  <p style="text-align:center;margin:32px 0;">
+    <a href="${verifyUrl}" style="background:#4ade80;color:#0f0f1a;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none;">
+      ✅ Verificar mi correo
+    </a>
+  </p>
+  <p style="color:#64748b;font-size:13px;">Si no creaste esta cuenta, ignora este mensaje.</p>
+</div>
+</body>
+</html>`;
+
+    await resend.emails.send({
+        from: FROM_EMAIL,
+        to: userEmail,
+        subject: '[Powerbud] Verifica tu correo electrónico',
+        html
+    });
+}
+
+/**
+ * Envía email de bienvenida/confirmación al nuevo usuario.
+ */
+async function sendWelcomeEmail({ userEmail, userName, role }) {
+    const roleLabels = { trainer: 'Entrenador', nutritionist: 'Nutricionista', client: 'Cliente' };
+    const roleLabel = roleLabels[role] || 'Usuario';
+
+    const extraNote = (role === 'trainer' || role === 'nutritionist')
+        ? `<p style="background:#1e293b;border-left:4px solid #6366f1;padding:12px 16px;border-radius:4px;">
+            Para activar tu cuenta debes subir tu <strong>certificado profesional</strong> desde la app. 
+            Lo revisaremos y te notificaremos por este correo.
+           </p>`
+        : `<p>Ya puedes buscar entrenadores y nutricionistas, registrar tus comidas y hacer seguimiento de tu progreso.</p>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#0f0f1a;padding:20px;">
+<div style="background:#1a1a2e;color:#e2e8f0;border-radius:12px;padding:36px;max-width:520px;margin:auto;">
+  <h1 style="color:#4ade80;font-size:28px;margin-bottom:4px;">¡Bienvenido a Powerbud! 💪</h1>
+  <p style="color:#94a3b8;margin-top:0;">Tu cuenta fue creada exitosamente</p>
+  <hr style="border:none;border-top:1px solid #2d2d44;margin:20px 0;"/>
+  <p>Hola <strong>${userName}</strong>,</p>
+  <p>Tu cuenta como <strong>${roleLabel}</strong> ya está activa en Powerbud.</p>
+  ${extraNote}
+  <p style="color:#64748b;font-size:13px;margin-top:32px;">El equipo de Powerbud</p>
+</div>
+</body>
+</html>`;
+
+    await resend.emails.send({
+        from: FROM_EMAIL,
+        to: userEmail,
+        subject: '¡Bienvenido a Powerbud! Tu cuenta fue creada',
+        html
+    });
+}
