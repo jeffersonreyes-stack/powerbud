@@ -117,6 +117,18 @@ export default function TrainerClientsScreen({ navigation }) {
     setAiModalVisible(true);
   };
 
+  const togglePayment = async (client) => {
+    try {
+      const res = await api.post(`/v2/relations/clients/${client.client_id}/payment`);
+      const newStatus = res.data.payment_status;
+      setClients(prev => prev.map(c =>
+        c.client_id === client.client_id ? { ...c, payment_status: newStatus } : c
+      ));
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'No se pudo actualizar el pago.');
+    }
+  };
+
   const generateAiWorkout = async () => {
     if (!selectedClient) return;
     setGenerating(true);
@@ -180,6 +192,14 @@ export default function TrainerClientsScreen({ navigation }) {
             onPress={() => openDietModal(item)}
           >
             <Text style={styles.dietBtnText}>🥗 Dieta IA</Text>
+          </TouchableOpacity>
+        )}
+        {item.status === 'active' && (
+          <TouchableOpacity
+            style={[styles.actionBtn, item.payment_status === 'paid' ? styles.paidBtn : styles.pendingPayBtn]}
+            onPress={() => togglePayment(item)}
+          >
+            <Text style={styles.payBtnText}>{item.payment_status === 'paid' ? '✅ Pagado' : '💰 Sin pago'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -415,6 +435,9 @@ const styles = StyleSheet.create({
   aiBtnText: { color: '#18181b', fontWeight: 'bold', fontSize: 13 },
   dietBtn: { backgroundColor: '#00eaff', shadowColor: '#00eaff', shadowOpacity: 0.5, shadowRadius: 6, elevation: 2 },
   dietBtnText: { color: '#18181b', fontWeight: 'bold', fontSize: 13 },
+  paidBtn: { backgroundColor: '#22c55e', shadowColor: '#22c55e', shadowOpacity: 0.4, shadowRadius: 6, elevation: 2 },
+  pendingPayBtn: { backgroundColor: '#3f3f46', borderWidth: 1, borderColor: '#f59e0b' },
+  payBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
 
   // Empty state
   emptyBox: { alignItems: 'center', marginTop: 60 },

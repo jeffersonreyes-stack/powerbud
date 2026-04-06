@@ -12,10 +12,14 @@ router.use(authenticateToken);
 // ==========================================
 
 // 0. Ver todos mis clientes (Entrenador)
-router.get('/trainer/clients', requireRole('trainer'), async (req, res) => {
+router.get('/trainer/clients', async (req, res) => {
+    if (req.user.role !== 'trainer' && req.user.role !== 'nutritionist') {
+        return res.status(403).json({ error: 'Acceso denegado.' });
+    }
     try {
         const sql = `
-            SELECT tc.client_id, u.email, tc.status, tc.assigned_at
+            SELECT tc.client_id, u.email, u.name, tc.status, tc.assigned_at,
+                   COALESCE(tc.payment_status, 'pending') as payment_status, tc.payment_updated_at
             FROM trainer_clients tc
             JOIN users u ON tc.client_id = u.id
             WHERE tc.trainer_id = $1
@@ -195,6 +199,41 @@ router.post('/invitations/:trainerId/reject', async (req, res) => {
     } catch (err) {
         console.error('Error rejecting invitation:', err);
         res.status(500).json({ error: 'Error al rechazar al entrenador' });
+    }
+});
+
+// 5. Marcar pago de un cliente (solo entrenador/nutricionista — toggle paid/pending)
+router.post('/clients/:clientId/payment', async (req, res) => {
+    try {
+        const trainerId = req.user.id;
+        const clientId  = Number(req.params.clientId);
+
+        if (req.user.role !== 'trainer' && req.user.role !== 'nutritionist') {
+            return res.status(403).json({ error: 'Solo entrenadores y nutricionistas pueden gestionar pagos.' });
+        }
+
+        // Verificar que existe la relación activa
+        const rel = await pgDb.query(
+            'SELECT payment_status FROM trainer_clients WHERE trainer_id = $1 AND client_id = $2 AND status = $3',
+            [trainerId, clientId, 'active']
+        );
+
+        if (!rel.rows.length) {
+            return res.status(404).json({ error: 'No tienes un cliente activo con ese ID.' });
+        }
+
+        // Toggle: pending → paid, paid → pending
+        const newStatus = rel.rows[0].payment_status === 'paid' ? 'pending' : 'paid';
+
+        await pgDb.query(
+            'UPDATE trainer_clients SET payment_status = $1, payment_updated_at = NOW() WHERE trainer_id = $2 AND client_id = $3',
+            [newStatus, trainerId, clientId]
+        );
+
+        res.json({ success: true, payment_status: newStatus });
+    } catch (err) {
+        console.error('Error updating payment:', err);
+        res.status(500).json({ error: 'Error al actualizar el pago.' });
     }
 });
 
