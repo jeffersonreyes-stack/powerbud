@@ -14,6 +14,8 @@ const supabaseBucket = process.env.SUPABASE_BUCKET || 'powerbud1';
 let supabase;
 if (supabaseUrl && supabaseKey) {
     supabase = createClient(supabaseUrl, supabaseKey);
+} else {
+    console.warn('[upload] Supabase Storage NO inicializado. SUPABASE_URL presente:', !!supabaseUrl, '| KEY presente:', !!supabaseKey);
 }
 
 // Configurar multer para almacenar el archivo en memoria (luego lo pasamos a Supabase)
