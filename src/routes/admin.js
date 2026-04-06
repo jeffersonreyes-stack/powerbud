@@ -34,7 +34,7 @@ router.get('/verify-trainer', async (req, res) => {
     try {
         // Verificar que el usuario existe y sigue en estado pending
         const userRes = await pgDb.query(
-            'SELECT id, email, full_name, role, verification_status FROM users WHERE id = $1',
+            'SELECT id, email, name, role, verification_status FROM users WHERE id = $1',
             [userId]
         );
 
@@ -46,7 +46,7 @@ router.get('/verify-trainer', async (req, res) => {
 
         if (user.verification_status !== 'pending') {
             const already = user.verification_status === 'verified' ? 'ya fue aprobada' : 'ya fue rechazada';
-            return res.send(renderPage('Acción ya realizada', `La cuenta de ${user.full_name || user.email} ${already}.`, true));
+            return res.send(renderPage('Acción ya realizada', `La cuenta de ${user.name || user.email} ${already}.`, true));
         }
 
         const newStatus = action === 'approve' ? 'verified' : 'unverified';
@@ -71,7 +71,7 @@ router.get('/verify-trainer', async (req, res) => {
         try {
             await sendVerificationResultEmail({
                 userEmail: user.email,
-                userName: user.full_name || user.email,
+                userName: user.name || user.email,
                 role: user.role,
                 approved: action === 'approve'
             });
@@ -81,8 +81,8 @@ router.get('/verify-trainer', async (req, res) => {
 
         const title  = action === 'approve' ? 'Cuenta aprobada ✅' : 'Cuenta rechazada ❌';
         const detail = action === 'approve'
-            ? `La cuenta de <strong>${user.full_name || user.email}</strong> fue marcada como verificada.`
-            : `La cuenta de <strong>${user.full_name || user.email}</strong> fue rechazada. El usuario recibirá un aviso.`;
+            ? `La cuenta de <strong>${user.name || user.email}</strong> fue marcada como verificada.`
+            : `La cuenta de <strong>${user.name || user.email}</strong> fue rechazada. El usuario recibirá un aviso.`;
 
         return res.send(renderPage(title, detail, true));
 

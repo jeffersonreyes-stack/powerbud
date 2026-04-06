@@ -134,7 +134,7 @@ router.post('/certificate', upload.single('certificate'), async (req, res) => {
             UPDATE users
             SET certificate_url = $1, verification_status = 'pending'
             WHERE id = $2
-            RETURNING full_name, email, role
+            RETURNING name, email, role
         `;
 
         const updateRes = await pgDb.query(sql, [publicUrl, userId]);
@@ -147,7 +147,7 @@ router.post('/certificate', upload.single('certificate'), async (req, res) => {
 
             await sendCertificateApprovalEmail({
                 userId,
-                userName: user.full_name || user.email || `Usuario #${userId}`,
+                userName: user.name || user.email || `Usuario #${userId}`,
                 userEmail: user.email || '',
                 role: user.role || req.user.role,
                 certificateUrl: publicUrl,
