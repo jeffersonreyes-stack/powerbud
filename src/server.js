@@ -201,6 +201,7 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
     };
 
     // Resolver trainerContext: especialista IA + instrucciones del entrenador
+    const body = req.body || {};
     let trainerContext = {};
     if (req.user.role === 'trainer') {
       const tProfileRes = await pgDb.query('SELECT specialty, ai_specialist FROM user_profiles WHERE user_id = $1', [userId]);
@@ -208,12 +209,12 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
       const tUserRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);
       trainerContext = {
         ai_specialist: tProfile.ai_specialist || null,
-        trainer_instructions: req.body.trainer_instructions || null,
+        trainer_instructions: body.trainer_instructions || null,
         trainer_name: tUserRes.rows[0]?.name || tUserRes.rows[0]?.email || null,
       };
     } else if (req.user.role === 'client') {
       // Cliente puede pasar instrucciones opcionales
-      trainerContext = { trainer_instructions: req.body.trainer_instructions || null };
+      trainerContext = { trainer_instructions: body.trainer_instructions || null };
     }
 
     // Llamamos a PowerBud A.I. (Gemini) usando los datos recolectados
@@ -437,10 +438,11 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const senderRole = req.user.role;
+    const body = req.body || {};
 
     // Si es nutricionista con client_id, usar el perfil del cliente
-    const targetId = (senderRole === 'nutritionist' || senderRole === 'trainer') && req.body.client_id
-      ? req.body.client_id
+    const targetId = (senderRole === 'nutritionist' || senderRole === 'trainer') && body.client_id
+      ? body.client_id
       : userId;
 
     const profileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [targetId]);
@@ -521,7 +523,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       const nUserRes = await pgDb.query('SELECT name, email FROM users WHERE id = $1', [userId]);
       nutritionistContext = {
         ai_specialist: nProfileRes.rows[0]?.ai_specialist || null,
-        nutritionist_instructions: req.body.nutritionist_instructions || null,
+        nutritionist_instructions: body.nutritionist_instructions || null,
         nutritionist_name: nUserRes.rows[0]?.name || nUserRes.rows[0]?.email || null,
       };
     }
@@ -530,8 +532,8 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
     const dietPlan = await aiService.generateDietPlan(profile, workoutContext, nutritionHistory, nutritionistContext);
 
     // Guardar en DB (para el cliente si client_id fue dado; para el usuario actual si no)
-    const saveTargetId = (senderRole === 'nutritionist' || senderRole === 'trainer') && req.body.client_id
-      ? req.body.client_id
+    const saveTargetId = (senderRole === 'nutritionist' || senderRole === 'trainer') && body.client_id
+      ? body.client_id
       : userId;
     await pgDb.query(
       'INSERT INTO diet_plans (user_id, plan_json) VALUES ($1, $2)',

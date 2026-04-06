@@ -86,8 +86,8 @@ router.post('/certificate', upload.single('certificate'), async (req, res) => {
         const userId = req.user.id;
         const file = req.file;
 
-        if (req.user.role !== 'trainer') {
-            return res.status(403).json({ error: 'Solo los entrenadores deben subir certificados.' });
+        if (req.user.role !== 'trainer' && req.user.role !== 'nutritionist') {
+            return res.status(403).json({ error: 'Solo los entrenadores y nutricionistas deben subir certificados.' });
         }
 
         if (!file) {
