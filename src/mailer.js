@@ -1,15 +1,10 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'control@reyescomputing.com';
-const API_BASE = process.env.API_BASE_URL || 'https://powerbud-api.onrender.com';
+const FROM_EMAIL  = process.env.FROM_EMAIL  || 'Powerbud App <noreply@reyescomputing.com>';
+const API_BASE    = process.env.API_BASE_URL || 'https://powerbud-api.onrender.com';
 
 /**
  * Envía email al administrador para aprobar/rechazar un certificado.
@@ -65,8 +60,8 @@ h2{color:#1a1a2e;}
 </body>
 </html>`;
 
-    await transporter.sendMail({
-        from: `"Powerbud App" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+        from: FROM_EMAIL,
         to: ADMIN_EMAIL,
         subject: `[Powerbud] Verificar certificado — ${roleLabel}: ${userName}`,
         html
@@ -99,8 +94,8 @@ async function sendVerificationResultEmail({ userEmail, userName, role, approved
 </body>
 </html>`;
 
-    await transporter.sendMail({
-        from: `"Powerbud App" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+        from: FROM_EMAIL,
         to: userEmail,
         subject,
         html
