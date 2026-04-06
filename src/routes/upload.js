@@ -6,10 +6,9 @@ const { authenticateToken } = require('../auth');
 const router = express.Router();
 
 // Configurar cliente de Supabase
-const supabaseUrl = process.env.SUPABASE_URL || '';
-// Advertencia: Para guardar/escribir en buckets públicos se recomienda usar el SERVICE_ROLE_KEY de Supabase
+const supabaseUrl = process.env.SUPA_BASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-const supabaseBucket = process.env.SUPABASE_BUCKET || 'powerbud1';
+const supabaseBucket = process.env.SUPA_BASE_BUCKET || process.env.SUPABASE_BUCKET || 'powerbud1';
 
 let supabase;
 if (supabaseUrl && supabaseKey) {
