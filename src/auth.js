@@ -47,7 +47,32 @@ const authController = {
       // Verificar si el correo ya existe
       const userExists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       if (userExists.rows.length > 0) {
-        return res.status(409).json({ error: 'El correo electrónico ya está registrado' });
+        const existing = userExists.rows[0];
+
+        // Cuenta verificada → no puede registrarse de nuevo
+        if (existing.email_verified) {
+          return res.status(409).json({ error: 'El correo electrónico ya está registrado' });
+        }
+
+        // Cuenta suspendida (no verificó en 24h) → eliminar y permitir re-registro
+        const expired = existing.email_verified_expires && new Date(existing.email_verified_expires) < new Date();
+        if (expired) {
+          await db.query('DELETE FROM users WHERE id = $1', [existing.id]);
+          // Cae al bloque de creación de cuenta abajo
+        } else {
+          // Aún está dentro de las 24h → reenviar email de verificación
+          try {
+            const verifyToken = jwt.sign({ userId: existing.id, purpose: 'email_verify' }, JWT_SECRET, { expiresIn: '24h' });
+            await sendEmailVerification({
+              userEmail: existing.email,
+              userName: existing.name || existing.email,
+              verifyToken
+            });
+          } catch (mailErr) {
+            console.error('[auth] Error reenviando email:', mailErr.message);
+          }
+          return res.status(409).json({ error: 'Ya existe una cuenta pendiente de verificación con ese correo. Te reenviamos el email de verificación.' });
+        }
       }
 
       // Encriptar contraseña
