@@ -16,6 +16,7 @@ const workoutsRoutes = require('./routes/workouts');
 const relationsRoutes = require('./routes/relations');
 const reviewsRoutes = require('./routes/reviews');
 const uploadRoutes = require('./routes/upload');
+const adminRoutes = require('./routes/admin');
 
 // Mantenemos vivo el backend antiguo para que las rutas no se rompan
 const db = require('./database');
@@ -432,6 +433,7 @@ app.use('/api/v2/relations', relationsRoutes);
 app.use('/api/v2/reviews', reviewsRoutes);
 app.use('/api/v2/upload', uploadRoutes);
 app.use('/api/v2/notifications', notificationsRoutes);
+app.use('/api/v2/admin', adminRoutes);
 
 // -- DIETA: Generar plan con IA --
 app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {

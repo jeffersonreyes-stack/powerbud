@@ -1,7 +1,11 @@
 const express = require('express');
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken } = require('../auth');
+const { sendCertificateApprovalEmail } = require('../mailer');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'powerbud-secret-key-dev-only';
 
 const router = express.Router();
 
@@ -130,10 +134,30 @@ router.post('/certificate', upload.single('certificate'), async (req, res) => {
             UPDATE users
             SET certificate_url = $1, verification_status = 'pending'
             WHERE id = $2
-            RETURNING verification_status
+            RETURNING full_name, email, role
         `;
 
-        await pgDb.query(sql, [publicUrl, userId]);
+        const updateRes = await pgDb.query(sql, [publicUrl, userId]);
+        const user = updateRes.rows[0] || {};
+
+        // 4. Enviar email al admin con links de aprobación/rechazo
+        try {
+            const approveToken = jwt.sign({ userId, action: 'approve' }, JWT_SECRET, { expiresIn: '7d' });
+            const rejectToken  = jwt.sign({ userId, action: 'reject'  }, JWT_SECRET, { expiresIn: '7d' });
+
+            await sendCertificateApprovalEmail({
+                userId,
+                userName: user.full_name || user.email || `Usuario #${userId}`,
+                userEmail: user.email || '',
+                role: user.role || req.user.role,
+                certificateUrl: publicUrl,
+                approveToken,
+                rejectToken
+            });
+        } catch (mailErr) {
+            // El email es no-crítico: logueamos pero no bloqueamos la respuesta
+            console.error('[upload] Error enviando email de verificación:', mailErr.message);
+        }
 
         res.json({
             success: true,
