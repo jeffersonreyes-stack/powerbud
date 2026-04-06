@@ -207,6 +207,8 @@ async function initDb() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_expires TIMESTAMP WITH TIME ZONE`);
+    // Cuentas creadas antes de la verificación de email (sin fecha de expiración) → marcar como verificadas
+    await client.query(`UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE AND email_verified_expires IS NULL`);
     await client.query(`ALTER TABLE trainer_clients ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid'))`);
     await client.query(`ALTER TABLE trainer_clients ADD COLUMN IF NOT EXISTS payment_updated_at TIMESTAMP WITH TIME ZONE`);
     await client.query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g REAL DEFAULT 100`);

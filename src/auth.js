@@ -128,8 +128,9 @@ const authController = {
       }
 
       // Bloquear si no verificó el email
-      if (!user.email_verified) {
-        const expired = user.email_verified_expires && new Date(user.email_verified_expires) < new Date();
+      // Cuentas sin email_verified_expires son anteriores al feature → se dejan pasar
+      if (!user.email_verified && user.email_verified_expires) {
+        const expired = new Date(user.email_verified_expires) < new Date();
         if (expired) {
           return res.status(403).json({ error: 'Tu cuenta fue suspendida por no verificar el correo. Regístrate de nuevo.' });
         }
