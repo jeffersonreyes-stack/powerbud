@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
 import api from '../api';
 
@@ -173,7 +173,8 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
     const totalSteps = 3; // ambos tienen 3 pasos ahora
 
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>⚡ PowerBud</Text>
         <Text style={styles.subtitle}>
           {isEditing
@@ -325,7 +326,8 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
             </View>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -333,7 +335,8 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
   // FLUJO CLIENTE (original, 3 pasos)
   // ══════════════════════════════════════════════════════════════════════════
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>⚡ Powerbud</Text>
       <Text style={styles.subtitle}>
         {isEditing ? 'Actualiza tu perfil para mejorar las recomendaciones de la IA' : 'Configura tu perfil para recibir tu mesociclo de 6 semanas personalizado'}
@@ -437,7 +440,8 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
           </View>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

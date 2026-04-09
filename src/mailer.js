@@ -1,10 +1,19 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'control@reyescomputing.com';
-const FROM_EMAIL  = process.env.FROM_EMAIL  || 'Powerbud App <noreply@reyescomputing.com>';
-const API_BASE    = process.env.API_BASE_URL || 'https://powerbud-api.onrender.com';
+const FROM_EMAIL  = process.env.FROM_EMAIL  || 'Powerbud <onboarding@resend.dev>';
+const API_BASE    = process.env.API_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'https://powerbud-api.onrender.com';
+
+async function deliverEmail(payload) {
+    if (!resend) {
+        console.warn(`[mailer] RESEND_API_KEY no configurada. Se omitió el correo: ${payload.subject}`);
+        return { skipped: true };
+    }
+    return resend.emails.send(payload);
+}
 
 /**
  * Envía email al administrador para aprobar/rechazar un certificado.
@@ -60,7 +69,7 @@ h2{color:#1a1a2e;}
 </body>
 </html>`;
 
-    await resend.emails.send({
+    await deliverEmail({
         from: FROM_EMAIL,
         to: ADMIN_EMAIL,
         subject: `[Powerbud] Verificar certificado — ${roleLabel}: ${userName}`,
@@ -94,7 +103,7 @@ async function sendVerificationResultEmail({ userEmail, userName, role, approved
 </body>
 </html>`;
 
-    await resend.emails.send({
+    await deliverEmail({
         from: FROM_EMAIL,
         to: userEmail,
         subject,
@@ -128,7 +137,7 @@ async function sendPasswordReset({ userEmail, userName, resetToken }) {
 </body>
 </html>`;
 
-    await resend.emails.send({
+    await deliverEmail({
         from: FROM_EMAIL,
         to: userEmail,
         subject: '[Powerbud] Restablecer tu contraseña',
@@ -160,7 +169,7 @@ async function sendEmailVerification({ userEmail, userName, verifyToken }) {
 </body>
 </html>`;
 
-    await resend.emails.send({
+    return deliverEmail({
         from: FROM_EMAIL,
         to: userEmail,
         subject: '[Powerbud] Verifica tu correo electrónico',
@@ -198,7 +207,7 @@ async function sendWelcomeEmail({ userEmail, userName, role }) {
 </body>
 </html>`;
 
-    await resend.emails.send({
+    await deliverEmail({
         from: FROM_EMAIL,
         to: userEmail,
         subject: '¡Bienvenido a Powerbud! Tu cuenta fue creada',

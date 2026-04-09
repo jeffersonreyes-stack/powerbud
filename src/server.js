@@ -5,6 +5,7 @@ const pgDb = require('./pg-database'); // <--- NUEVA BASE DE DATOS
 const { authController, authenticateToken, requireRole } = require('./auth'); // <--- AUTENTICACIÓN
 const aiService = require('./ai'); // <--- IA DE GEMINI
 const path = require('path');
+const os = require('os');
 
 // RUTAS v2 (MIGRACIÓN A POSTGRESQL)
 const foodsRoutes = require('./routes/foods');
@@ -38,11 +39,28 @@ function parseLocaleNumber(value) {
     return Number(value);
 }
 
+function getNetworkUrl(port) {
+  const interfaces = os.networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    for (const net of entries || []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return `http://${net.address}:${port}`;
+      }
+    }
+  }
+  return null;
+}
+
 // --- API ROUTES ---
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, service: 'powerbud-api' });
+});
 
 // -- RUTAS DE AUTENTICACIÓN Y USUARIOS (NUEVAS) --
 app.post('/api/auth/register', authController.register);
 app.post('/api/auth/login', authController.login);
+app.post('/api/auth/resend-verification', authController.resendVerification);
 
 // Reset de contraseña — paso 1: solicitar enlace
 app.post('/api/auth/forgot-password', async (req, res) => {
@@ -302,7 +320,7 @@ app.post('/api/v2/ai/generate-workout', authenticateToken, async (req, res) => {
 
     // ACWR para el prompt de rutina
     const acwrVolumeRes = await pgDb.query(
-      `SELECT date::text, SUM(weight * reps) as daily_volume
+      `SELECT date::text, SUM(weight * reps * COALESCE(sets, 1)) as daily_volume
        FROM workouts WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '27 days'
        GROUP BY date ORDER BY date ASC`,
       [targetIdForProgress]
@@ -457,7 +475,7 @@ app.get('/api/v2/progress/exercise-history', authenticateToken, async (req, res)
     const { exercise } = req.query;
     if (!exercise) return res.status(400).json({ error: 'Falta el parámetro exercise.' });
     const result = await pgDb.query(
-      `SELECT date, weight, reps, (weight * reps) as volumen
+      `SELECT date, weight, COALESCE(sets, 1) as sets, reps, (weight * reps * COALESCE(sets, 1)) as volumen
        FROM workouts WHERE client_id = $1 AND exercise ILIKE $2
        ORDER BY date ASC`,
       [req.user.id, `%${exercise}%`]
@@ -475,7 +493,7 @@ app.get('/api/v2/progress/recovery', authenticateToken, async (req, res) => {
 
     // Volumen diario últimos 28 días (weight × reps por día)
     const volumeRes = await pgDb.query(
-      `SELECT date::text, SUM(weight * reps) as daily_volume
+      `SELECT date::text, SUM(weight * reps * COALESCE(sets, 1)) as daily_volume
        FROM workouts WHERE client_id = $1
        AND date >= CURRENT_DATE - INTERVAL '27 days'
        GROUP BY date ORDER BY date ASC`,
@@ -593,7 +611,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
 
     // Obtener registros reales de entrenamiento (últimas 3 semanas)
     const workoutLogsRes = await pgDb.query(
-      `SELECT date::text, exercise, weight, reps, (weight * reps) as volumen
+      `SELECT date::text, exercise, weight, COALESCE(sets, 1) as sets, reps, (weight * reps * COALESCE(sets, 1)) as volumen
        FROM workouts WHERE client_id = $1
        AND date >= CURRENT_DATE - INTERVAL '21 days'
        ORDER BY date DESC, exercise ASC LIMIT 40`,
@@ -602,7 +620,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
 
     // ACWR para el prompt de dieta
     const acwrDietRes = await pgDb.query(
-      `SELECT date::text, SUM(weight * reps) as daily_volume
+      `SELECT date::text, SUM(weight * reps * COALESCE(sets, 1)) as daily_volume
        FROM workouts WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '27 days'
        GROUP BY date ORDER BY date ASC`,
       [targetId]
@@ -1088,6 +1106,12 @@ app.delete('/api/body-metrics/:id', (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    const networkUrl = getNetworkUrl(PORT);
+    if (networkUrl) {
+        console.log(`Disponible en red para el celular: ${networkUrl}`);
+        console.log(`Prueba rápida: ${networkUrl}/api/health`);
+    }
 });

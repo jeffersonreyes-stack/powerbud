@@ -18,11 +18,16 @@ export default function RegisterScreen({ navigation }) {
     setLoading(true);
     try {
       // Registrar en PostgreSQL
-      await api.post('/auth/register', { name: name.trim(), email, password, role });
+      await api.post('/auth/register', {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role,
+      });
 
       Alert.alert(
-        '¡Bienvenido a Powerbud!',
-        'Cuenta creada exitosamente. Ahora puedes iniciar sesión.',
+        'Revisa tu correo 📧',
+        'Cuenta creada exitosamente. Te enviamos un email de verificación. Revisa también spam o promociones antes de iniciar sesión.',
         [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
       );
 

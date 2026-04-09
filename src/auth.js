@@ -5,6 +5,15 @@ const { sendEmailVerification } = require('./mailer');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'powerbud-secret-key-dev-only'; // En producción esto será seguro
 
+async function sendFreshVerificationEmail(user) {
+  const verifyToken = jwt.sign({ userId: user.id, purpose: 'email_verify' }, JWT_SECRET, { expiresIn: '24h' });
+  return sendEmailVerification({
+    userEmail: user.email,
+    userName: user.name || user.email,
+    verifyToken
+  });
+}
+
 // Middleware para proteger rutas
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -54,25 +63,15 @@ const authController = {
           return res.status(409).json({ error: 'El correo electrónico ya está registrado' });
         }
 
-        // Cuenta suspendida (no verificó en 24h) → eliminar y permitir re-registro
-        const expired = existing.email_verified_expires && new Date(existing.email_verified_expires) < new Date();
-        if (expired) {
-          await db.query('DELETE FROM users WHERE id = $1', [existing.id]);
-          // Cae al bloque de creación de cuenta abajo
-        } else {
-          // Aún está dentro de las 24h → reenviar email de verificación
-          try {
-            const verifyToken = jwt.sign({ userId: existing.id, purpose: 'email_verify' }, JWT_SECRET, { expiresIn: '24h' });
-            await sendEmailVerification({
-              userEmail: existing.email,
-              userName: existing.name || existing.email,
-              verifyToken
-            });
-          } catch (mailErr) {
-            console.error('[auth] Error reenviando email:', mailErr.message);
-          }
-          return res.status(409).json({ error: 'Ya existe una cuenta pendiente de verificación con ese correo. Te reenviamos el email de verificación.' });
+        // Cuenta pendiente de verificación → actualizar vencimiento y reenviar email
+        const verifiedExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await db.query('UPDATE users SET email_verified_expires = $1 WHERE id = $2', [verifiedExpires, existing.id]);
+        try {
+          await sendFreshVerificationEmail(existing);
+        } catch (mailErr) {
+          console.error('[auth] Error reenviando email:', mailErr.message);
         }
+        return res.status(409).json({ error: 'Ya existe una cuenta pendiente con ese correo. Te reenviamos un nuevo email de verificación.' });
       }
 
       // Encriptar contraseña
@@ -91,12 +90,7 @@ const authController = {
 
       // Enviar email de verificación
       try {
-        const verifyToken = jwt.sign({ userId: newUser.id, purpose: 'email_verify' }, JWT_SECRET, { expiresIn: '24h' });
-        await sendEmailVerification({
-          userEmail: newUser.email,
-          userName: newUser.name || newUser.email,
-          verifyToken
-        });
+        await sendFreshVerificationEmail(newUser);
       } catch (mailErr) {
         console.error('[auth] Error enviando email de verificación:', mailErr.message);
       }
@@ -131,10 +125,26 @@ const authController = {
       // Cuentas sin email_verified_expires son anteriores al feature → se dejan pasar
       if (!user.email_verified && user.email_verified_expires) {
         const expired = new Date(user.email_verified_expires) < new Date();
-        if (expired) {
-          return res.status(403).json({ error: 'Tu cuenta fue suspendida por no verificar el correo. Regístrate de nuevo.' });
+        const verifiedExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await db.query('UPDATE users SET email_verified_expires = $1 WHERE id = $2', [verifiedExpires, user.id]);
+
+        try {
+          await sendFreshVerificationEmail(user);
+        } catch (mailErr) {
+          console.error('[auth] Error reenviando verificación en login:', mailErr.message);
         }
-        return res.status(403).json({ error: 'Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.' });
+
+        if (expired) {
+          return res.status(403).json({
+            error: 'Tu enlace de verificación había expirado. Ya te enviamos uno nuevo al correo.',
+            needs_verification: true,
+            expired: true,
+          });
+        }
+        return res.status(403).json({
+          error: 'Debes verificar tu correo electrónico antes de iniciar sesión. Te reenviamos un nuevo email.',
+          needs_verification: true,
+        });
       }
 
       // Generar Token JWT (Válido por 7 días)
@@ -148,6 +158,38 @@ const authController = {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Error del servidor al iniciar sesión' });
+    }
+  },
+
+  async resendVerification(req, res) {
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({ error: 'Debes indicar tu correo electrónico.' });
+    }
+
+    try {
+      const result = await db.query('SELECT id, email, name, email_verified FROM users WHERE email = $1', [email]);
+      if (result.rows.length === 0) {
+        return res.json({ message: 'Si el correo existe, te enviaremos un nuevo enlace de verificación.' });
+      }
+
+      const user = result.rows[0];
+      if (user.email_verified) {
+        return res.json({ message: 'Tu correo ya está verificado. Ya puedes iniciar sesión.' });
+      }
+
+      const verifiedExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db.query('UPDATE users SET email_verified_expires = $1 WHERE id = $2', [verifiedExpires, user.id]);
+      const emailResult = await sendFreshVerificationEmail(user);
+      if (emailResult?.skipped) {
+        return res.status(503).json({ error: 'El servicio de correo no está disponible. Configura RESEND_API_KEY en el servidor.' });
+      }
+
+      return res.json({ message: 'Te reenviamos el correo de verificación. Revisa también spam o promociones.' });
+    } catch (err) {
+      console.error('[auth] Error en resendVerification:', err);
+      return res.status(500).json({ error: 'No se pudo reenviar el correo en este momento.' });
     }
   },
 

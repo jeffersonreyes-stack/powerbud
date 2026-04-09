@@ -85,6 +85,7 @@ async function initDb() {
         date DATE NOT NULL,
         exercise VARCHAR(255) NOT NULL,
         weight REAL NOT NULL,
+        sets INTEGER NOT NULL DEFAULT 1,
         reps INTEGER NOT NULL,
         modified_by_client BOOLEAN DEFAULT FALSE -- Flag para saber si el cliente alteró la recomendación del entrenador
       )
@@ -219,6 +220,12 @@ async function initDb() {
     await client.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS availability TEXT`);
     await client.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS rate_info VARCHAR(255)`);
     await client.query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ai_specialist VARCHAR(100)`);
+
+    // Compatibilidad: número de series en entrenamientos existentes
+    await client.query(`ALTER TABLE workouts ADD COLUMN IF NOT EXISTS sets INTEGER DEFAULT 1`);
+    await client.query(`UPDATE workouts SET sets = 1 WHERE sets IS NULL OR sets < 1`);
+    await client.query(`ALTER TABLE workouts ALTER COLUMN sets SET DEFAULT 1`);
+    await client.query(`ALTER TABLE workouts ALTER COLUMN sets SET NOT NULL`);
 
     // Columna para marcar registros generados automáticamente por la IA (nunca registrados manualmente)
     await client.query(`ALTER TABLE workouts ADD COLUMN IF NOT EXISTS is_ai_generated BOOLEAN DEFAULT FALSE`);

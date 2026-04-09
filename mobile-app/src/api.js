@@ -1,14 +1,39 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeModules, Platform } from 'react-native';
 
-// USANDO VARIABLES DE ENTORNO EN LA NUBE (OBLIGATORIO PARA PRODUCCIÓN)
-// El dominio donde vive el servidor Node.js (ej. Render, AWS, Heroku)
-// Revisa mobile-app/.env.example para configurarlo si estás compilando tu APK/IPA
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.tu-servidor-cloud.com/api';
+function normalizeApiUrl(url) {
+  const cleanUrl = (url || '').trim().replace(/\/+$/, '');
+  if (!cleanUrl) return '';
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+}
+
+function resolveDevApiUrl() {
+  const scriptURL = NativeModules?.SourceCode?.scriptURL || '';
+  const hostMatch = scriptURL.match(/https?:\/\/([^/:]+)/i);
+  const metroHost = hostMatch?.[1];
+
+  if (metroHost && metroHost !== 'localhost' && metroHost !== '127.0.0.1') {
+    return `http://${metroHost}:3000/api`;
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000/api';
+  }
+
+  return 'http://127.0.0.1:3000/api';
+}
+
+// En producción usa EXPO_PUBLIC_API_URL.
+// En desarrollo, si no existe, intentamos usar automáticamente la misma IP del Metro/Expo para que funcione en el celular.
+const API_URL = normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) || resolveDevApiUrl();
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
 });
+
+console.log(`[PowerBud] API conectada a: ${API_URL}`);
 
 // Interceptor para inyectar automáticamente el Token de Seguridad (JWT) en cada petición
 api.interceptors.request.use(

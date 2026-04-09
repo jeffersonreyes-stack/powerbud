@@ -162,13 +162,97 @@ function resolveSpecialist(trainerSpecialist, clientGoal) {
   return AI_SPECIALISTS.general;
 }
 
+function buildFallbackWorkoutPlan(clientProfile = {}, progressData = {}, trainerContext = {}) {
+  const goal = clientProfile.goal || 'Mejorar condición física general';
+  const specialist = resolveSpecialist(trainerContext.ai_specialist, goal);
+  const requestedDays = Number.parseInt(clientProfile.days_per_week, 10);
+  const totalDays = Math.min(Math.max(Number.isInteger(requestedDays) ? requestedDays : 3, 3), 5);
+  const injuries = clientProfile.injuries || 'Ninguna reportada';
+  const acwr = progressData?.recovery?.acwr;
+  const lowRecovery = progressData?.recovery?.avg_sleep && Number(progressData.recovery.avg_sleep) < 7;
+  const conservativeNote = acwr !== null && acwr !== undefined && Number(acwr) > 1.3;
+
+  const templateDays = [
+    {
+      day_number: 1,
+      focus: 'Fuerza de tren inferior',
+      exercises: [
+        { name: 'Sentadilla goblet o trasera', sets: conservativeNote ? 3 : 4, reps: '6-10', notes: 'Aumenta 1-2 repeticiones o 2.5 kg cuando completes el rango con buena técnica.' },
+        { name: 'Peso muerto rumano', sets: 3, reps: '8-10', notes: 'Controla la bajada y mantén la espalda neutra.' },
+        { name: 'Zancadas caminando', sets: 3, reps: '10-12 por pierna', notes: 'Descansa 60-75 segundos entre series.' },
+        { name: 'Plancha frontal', sets: 3, reps: '30-45 s', notes: 'Prioriza estabilidad y respiración.' },
+      ]
+    },
+    {
+      day_number: 2,
+      focus: 'Empuje y torso',
+      exercises: [
+        { name: 'Press de pecho con mancuernas', sets: conservativeNote ? 3 : 4, reps: '8-12', notes: 'Mantén un RPE 7-8.' },
+        { name: 'Press militar sentado', sets: 3, reps: '8-10', notes: 'Evita dolor articular y controla la fase excéntrica.' },
+        { name: 'Fondos asistidos o flexiones', sets: 3, reps: '10-15', notes: 'Progresión semanal por repeticiones.' },
+        { name: 'Face pulls', sets: 3, reps: '12-15', notes: 'Úsalos para estabilidad escapular.' },
+      ]
+    },
+    {
+      day_number: 3,
+      focus: 'Tirón y acondicionamiento',
+      exercises: [
+        { name: 'Jalón al pecho o dominadas asistidas', sets: conservativeNote ? 3 : 4, reps: '8-12', notes: 'Busca rango completo.' },
+        { name: 'Remo con mancuerna', sets: 3, reps: '10-12', notes: 'Pausa un segundo arriba en cada repetición.' },
+        { name: 'Curl femoral o puente de glúteo', sets: 3, reps: '12-15', notes: 'Mantén tensión constante.' },
+        { name: 'Cardio moderado', sets: 1, reps: '12-20 min', notes: 'Zona 2 si tu objetivo es bajar grasa o mejorar capacidad aeróbica.' },
+      ]
+    },
+    {
+      day_number: 4,
+      focus: 'Full body técnico',
+      exercises: [
+        { name: 'Peso muerto con kettlebell', sets: 3, reps: '8-10', notes: 'Carga submáxima, técnica limpia.' },
+        { name: 'Press inclinado', sets: 3, reps: '8-12', notes: 'Deja 1-2 repeticiones en reserva.' },
+        { name: 'Remo sentado', sets: 3, reps: '10-12', notes: 'Evita balanceos.' },
+        { name: 'Farmer walk', sets: 3, reps: '30-40 m', notes: 'Fortalece agarre y core.' },
+      ]
+    },
+    {
+      day_number: 5,
+      focus: 'Movilidad y recuperación activa',
+      exercises: [
+        { name: 'Bicicleta o caminata', sets: 1, reps: '20-30 min', notes: 'Intensidad suave.' },
+        { name: 'Movilidad de cadera y hombro', sets: 2, reps: '8-10 min', notes: 'Prioriza articulaciones rígidas.' },
+        { name: 'Trabajo de core anti-rotacional', sets: 3, reps: '10-12 por lado', notes: 'Respira y controla la postura.' },
+      ]
+    }
+  ];
+
+  const days = templateDays.slice(0, totalDays).map((day, index) => ({ ...day, day_number: index + 1 }));
+
+  return {
+    workout_plan: {
+      goal,
+      specialist_type: trainerContext.ai_specialist || 'general',
+      specialist_focus: `Plan de respaldo basado en ${specialist.label} con progresión segura y sostenible.`,
+      trainer_notes: trainerContext.trainer_instructions || 'Plan de respaldo generado automáticamente por PowerBud.',
+      duration_weeks: 6,
+      progression_notes: conservativeNote
+        ? 'Semanas 1-2: volumen moderado para favorecer recuperación. Semanas 3-4: aumenta una serie en los ejercicios principales. Semanas 5-6: sube la carga 2.5-5% si mantienes buena técnica.'
+        : 'Semanas 1-2: domina técnica y rango de repeticiones. Semanas 3-4: aumenta 1 serie o 2 repeticiones por ejercicio base. Semanas 5-6: sube la carga 2.5-5% manteniendo 1-2 repeticiones en reserva.',
+      days,
+    },
+    general_advice: `Recuperación: ${lowRecovery ? 'prioriza dormir más de 7 horas antes de subir intensidad.' : 'mantén 7-9 horas de sueño y buena hidratación.'} Lesiones reportadas: ${injuries}. Ajusta cualquier ejercicio que cause dolor.`
+  };
+}
+
 const aiService = {
   // trainerContext = { ai_specialist, trainer_instructions, trainer_name }
   async generateWorkoutPlan(clientProfile, progressData = {}, trainerContext = {}) {
+    if (!apiKey) {
+      console.warn('[AI] Usando plan de respaldo: GEMINI_API_KEY no configurada.');
+      return buildFallbackWorkoutPlan(clientProfile, progressData, trainerContext);
+    }
+
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: { thinkingConfig: { thinkingBudget: 0 } }
+        model: 'gemini-2.0-flash',
       });
 
       const {
@@ -316,15 +400,14 @@ RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
 
     } catch (error) {
       console.error('Error al generar la rutina con Gemini:', error);
-      throw new Error('No se pudo generar la rutina de entrenamiento. Inténtalo de nuevo más tarde.');
+      return buildFallbackWorkoutPlan(clientProfile, progressData, trainerContext);
     }
   },
 
   async generateDietPlan(clientProfile, workoutContext = {}, nutritionHistory = {}, nutritionistContext = {}) {
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: { thinkingConfig: { thinkingBudget: 0 } }
+        model: 'gemini-2.0-flash',
       });
 
       const {

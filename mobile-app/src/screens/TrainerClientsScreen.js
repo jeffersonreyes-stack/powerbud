@@ -32,16 +32,22 @@ export default function TrainerClientsScreen({ navigation }) {
 
   useEffect(() => {
     checkVerificationAndFetch();
-  }, []);
+    const unsubscribe = navigation?.addListener?.('focus', checkVerificationAndFetch);
+    return unsubscribe;
+  }, [navigation]);
 
   const checkVerificationAndFetch = async () => {
     try {
+      setLoading(true);
       const profileRes = await api.get('/profile');
-      setVerificationStatus(profileRes.data.verification_status || 'unverified');
+      const currentStatus = profileRes.data.verification_status || 'unverified';
+      setVerificationStatus(currentStatus);
       setMyRole(profileRes.data.role || 'trainer');
-      if (profileRes.data.verification_status === 'verified') {
+      if (currentStatus === 'verified') {
         const response = await api.get('/v2/relations/trainer/clients');
         setClients(response.data);
+      } else {
+        setClients([]);
       }
     } catch (error) {
       console.error('Error inicial:', error);
@@ -225,6 +231,9 @@ export default function TrainerClientsScreen({ navigation }) {
               <Text style={styles.warningBody}>
                 Hemos recibido tu diploma. Nuestro equipo lo está verificando. Te avisaremos cuando tu cuenta sea aprobada.
               </Text>
+              <TouchableOpacity style={styles.uploadCertBtn} onPress={checkVerificationAndFetch}>
+                <Text style={styles.uploadCertText}>Actualizar estado</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.warningCard}>

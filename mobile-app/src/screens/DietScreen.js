@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList,
-  ActivityIndicator, Modal, TextInput, Alert
+  ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
 import api from '../api';
 
@@ -361,7 +361,10 @@ export default function DietScreen() {
 
       {/* ─── Modal picker de alimentos ──────────────────────────────────── */}
       <Modal visible={pickerVisible} animationType="slide" onRequestClose={closePicker}>
-        <View style={styles.pickerContainer}>
+        <KeyboardAvoidingView
+          style={styles.pickerContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>🍽️ Registrar comida</Text>
             <TouchableOpacity onPress={closePicker}><Text style={styles.pickerClose}>✕</Text></TouchableOpacity>
@@ -420,7 +423,7 @@ export default function DietScreen() {
               </TouchableOpacity>
             </ScrollView>
           ) : (
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? 60 : 0 }}>
               {pickerLoading
                 ? <ActivityIndicator size="large" color="#ff00c8" style={{ marginTop: 40 }} />
                 : (
@@ -452,12 +455,16 @@ export default function DietScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ─── Modal nuevo alimento ─────────────────────────────────────── */}
       <Modal visible={newFoodVisible} animationType="slide" onRequestClose={() => setNewFoodVisible(false)}>
-        <ScrollView style={styles.pickerContainer} keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView
+          style={styles.pickerContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+        <ScrollView keyboardShouldPersistTaps="handled">
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>➕ Nuevo alimento</Text>
             <TouchableOpacity onPress={() => setNewFoodVisible(false)}><Text style={styles.pickerClose}>✕</Text></TouchableOpacity>
@@ -499,6 +506,7 @@ export default function DietScreen() {
             </TouchableOpacity>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

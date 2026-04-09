@@ -77,16 +77,32 @@ export default function DashboardScreen({ setIsAuthenticated }) {
 
   // ¡EL BOTÓN MÁGICO! Llama a Google Gemini en el Backend sin chats ni fricción
   const generateMagicWorkout = async () => {
+    const missingProfileData = !profileData?.goal || !profileData?.experience_level || !profileData?.weight_kg || !profileData?.height_cm;
+    if (missingProfileData) {
+      Alert.alert(
+        'Completa tu perfil',
+        'Antes de generar tu rutina, completa tu objetivo, experiencia, peso y estatura.',
+        [
+          { text: 'Ahora no', style: 'cancel' },
+          { text: 'Abrir perfil', onPress: () => setShowEditProfile(true) },
+        ]
+      );
+      return;
+    }
+
     setLoadingAI(true);
     try {
       const response = await api.post('/v2/ai/generate-workout');
-      // El plan viene dentro de data.data
       const plan = response.data.data;
       setAiWorkout(plan);
       Alert.alert('✅ ¡Rutina generada!', 'Tu mesociclo de 6 semanas está listo y guardado.');
     } catch (error) {
       console.error('Error IA:', error.response?.data || error.message);
-      Alert.alert('Error', 'La IA no pudo generar tu rutina. Verifica tu perfil e inténtalo de nuevo.');
+      const serverMessage = error.response?.data?.error || 'No se pudo generar tu rutina en este momento. Inténtalo nuevamente.';
+      if (/perfil|completa/i.test(serverMessage)) {
+        setShowEditProfile(true);
+      }
+      Alert.alert('Error', serverMessage);
     } finally {
       setLoadingAI(false);
     }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  Alert, ActivityIndicator, Image, FlatList
+  Alert, ActivityIndicator, Image, FlatList, KeyboardAvoidingView, Platform
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../api';
@@ -120,10 +120,22 @@ export default function ProgressScreen() {
         const uploadRes = await api.post('/v2/upload/progress', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         photoPublicUrl = uploadRes.data.photo_url;
       }
-      await api.post('/v2/progress/body-metrics', { date: new Date().toISOString().split('T')[0], weight_kg: weight, notes: notes || '', photo_url: photoPublicUrl });
+      await api.post('/v2/progress/body-metrics', {
+        date: new Date().toISOString().split('T')[0],
+        weight_kg: weight,
+        notes: notes || '',
+        sleep_hours: sleepHours ? Number(sleepHours) : null,
+        stress_level: stressLevel ? Number(stressLevel) : null,
+        photo_url: photoPublicUrl,
+      });
       Alert.alert('✅ Guardado', 'Tu progreso corporal fue registrado.');
-      setWeight(''); setNotes(''); setPhoto(null);
+      setWeight('');
+      setNotes('');
+      setSleepHours('');
+      setStressLevel('');
+      setPhoto(null);
       fetchBodyHistory();
+      fetchRecovery();
     } catch (e) {
       Alert.alert('Error', 'No se pudo guardar el progreso.');
     } finally { setSavingBody(false); }
@@ -131,7 +143,11 @@ export default function ProgressScreen() {
 
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={90}
+    >
       {/* Tabs */}
       <View style={styles.tabBar}>
         {[{ key: 'cuerpo', label: '🏋️ Cuerpo' }, { key: 'ejercicios', label: '📊 Ejercicios' }].map(t => (
@@ -148,7 +164,7 @@ export default function ProgressScreen() {
 
       {/* ── TAB CUERPO ── */}
       {tab === 'cuerpo' && (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sectionTitle}>� Tasa de Recuperación</Text>
           {loadingRecovery ? <ActivityIndicator color="#39ff14" /> : !recovery ? null : (
             <View style={[styles.card, { borderLeftColor:
@@ -258,7 +274,7 @@ export default function ProgressScreen() {
 
       {/* ── TAB EJERCICIOS ── */}
       {tab === 'ejercicios' && (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sectionTitle}>🏆 Progreso por Ejercicio</Text>
           <Text style={styles.hint}>Toca un ejercicio para ver su tabla de progresión</Text>
           {loadingEx ? <ActivityIndicator color="#39ff14" style={{ marginTop: 30 }} /> :
@@ -282,7 +298,7 @@ export default function ProgressScreen() {
 
       {/* ── TAB DETALLE ── */}
       {tab === 'detalle' && selectedEx && (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <TouchableOpacity onPress={() => setTab('ejercicios')} style={styles.backBtn}>
             <Text style={styles.backBtnText}>← Volver</Text>
           </TouchableOpacity>
@@ -320,7 +336,7 @@ export default function ProgressScreen() {
           }
         </ScrollView>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

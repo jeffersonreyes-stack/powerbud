@@ -51,7 +51,10 @@ router.get('/', async (req, res) => {
 // 2. Log a Workout Set (El cliente registra lo que hizo, o el entrenador se lo asigna)
 router.post('/', async (req, res) => {
     try {
-        const { date, exercise, weight, reps, client_id } = req.body;
+        const { date, exercise, weight, reps, sets, client_id } = req.body;
+        const parsedWeight = Number(typeof weight === 'string' ? weight.replace(',', '.') : weight);
+        const parsedReps = Number.parseInt(reps, 10);
+        const parsedSets = Math.max(1, Number.parseInt(sets ?? 1, 10) || 1);
 
         let clientIdToInsert;
         let trainerIdToInsert = null;
@@ -73,16 +76,16 @@ router.post('/', async (req, res) => {
             clientIdToInsert = req.user.id;
         }
 
-        if (!date || !exercise || !Number.isFinite(Number(weight)) || !Number.isInteger(Number(reps))) {
+        if (!date || !exercise || !Number.isFinite(parsedWeight) || !Number.isInteger(parsedReps) || parsedReps <= 0) {
             return res.status(400).json({ error: 'Datos de entrenamiento inválidos' });
         }
 
         const sql = `
-            INSERT INTO workouts (client_id, trainer_id, date, exercise, weight, reps, modified_by_client)
-            VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+            INSERT INTO workouts (client_id, trainer_id, date, exercise, weight, sets, reps, modified_by_client)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE)
             RETURNING *`;
 
-        const result = await pgDb.query(sql, [clientIdToInsert, trainerIdToInsert, date, exercise, weight, reps]);
+        const result = await pgDb.query(sql, [clientIdToInsert, trainerIdToInsert, date, exercise, parsedWeight, parsedSets, parsedReps]);
 
         // Notificación automática cuando el entrenador asigna un ejercicio manualmente
         if (req.user.role === 'trainer' && trainerIdToInsert) {
@@ -111,7 +114,10 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const id = Number(req.params.id);
-        const { date, exercise, weight, reps } = req.body;
+        const { date, exercise, weight, reps, sets } = req.body;
+        const parsedWeight = Number(typeof weight === 'string' ? weight.replace(',', '.') : weight);
+        const parsedReps = Number.parseInt(reps, 10);
+        const parsedSets = Math.max(1, Number.parseInt(sets ?? 1, 10) || 1);
         const userRole = req.user.role;
         const userId = req.user.id;
 
@@ -150,14 +156,18 @@ router.put('/:id', async (req, res) => {
             // Si fue creada por el mismo cliente desde cero, no hace falta advertir (modifiedByClientFlag se queda igual/falso)
         }
 
+        if (!date || !exercise || !Number.isFinite(parsedWeight) || !Number.isInteger(parsedReps) || parsedReps <= 0) {
+            return res.status(400).json({ error: 'Datos de entrenamiento inválidos' });
+        }
+
         const sql = `
             UPDATE workouts
-            SET date = $1, exercise = $2, weight = $3, reps = $4, modified_by_client = $5
-            WHERE id = $6
+            SET date = $1, exercise = $2, weight = $3, sets = $4, reps = $5, modified_by_client = $6
+            WHERE id = $7
             RETURNING *
         `;
 
-        const result = await pgDb.query(sql, [date, exercise, weight, reps, modifiedByClientFlag, id]);
+        const result = await pgDb.query(sql, [date, exercise, parsedWeight, parsedSets, parsedReps, modifiedByClientFlag, id]);
 
         // Notificación cuando entrenador edita rutina del cliente
         if (userRole === 'trainer') {

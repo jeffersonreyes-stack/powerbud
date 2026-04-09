@@ -4,9 +4,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api';
 
 export default function LoginScreen({ navigation, setIsAuthenticated }) {
-  const [email, setEmail] = useState('test@powerbud.com');
-  const [password, setPassword] = useState('mypassword');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const resendVerificationEmail = async () => {
+    if (!email.trim()) {
+      Alert.alert('Correo requerido', 'Escribe tu correo para reenviar la verificación.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.post('/auth/resend-verification', { email: email.trim().toLowerCase() });
+      Alert.alert('Revisa tu correo', response.data?.message || 'Te reenviamos el email de verificación.');
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.error || 'No se pudo reenviar el correo en este momento.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -17,7 +34,7 @@ export default function LoginScreen({ navigation, setIsAuthenticated }) {
     setLoading(true);
     try {
       // Hablar con el cerebro Node.js (Ruta de Auth)
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email: email.trim().toLowerCase(), password });
       const { token, user } = response.data;
 
       // Guardar en la "bóveda" del celular
@@ -28,8 +45,17 @@ export default function LoginScreen({ navigation, setIsAuthenticated }) {
       setIsAuthenticated(true);
 
     } catch (error) {
-      console.error('Error Login:', error);
-      Alert.alert('Error al Iniciar Sesión', 'Credenciales inválidas o no hay conexión con el servidor. ¿Revisaste la IP en api.js?');
+      console.error('Error Login:', error.response?.data || error.message);
+      const serverMessage = error.response?.data?.error || 'No se pudo iniciar sesión. Verifica tu conexión e inténtalo de nuevo.';
+
+      if (error.response?.data?.needs_verification) {
+        Alert.alert('Verifica tu correo', serverMessage, [
+          { text: 'Cerrar', style: 'cancel' },
+          { text: 'Reenviar email', onPress: resendVerificationEmail },
+        ]);
+      } else {
+        Alert.alert('Error al Iniciar Sesión', serverMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -75,6 +101,10 @@ export default function LoginScreen({ navigation, setIsAuthenticated }) {
 
         <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.registerLink}>
           <Text style={[styles.registerText, { color: '#f59e0b' }]}>¿Olvidaste tu contraseña?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={resendVerificationEmail} style={styles.registerLink}>
+          <Text style={[styles.registerText, { color: '#39ff14' }]}>¿No te llegó el correo? Reenviar verificación</Text>
         </TouchableOpacity>
       </View>
     </View>

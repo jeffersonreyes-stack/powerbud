@@ -62,7 +62,12 @@ router.get('/verify-trainer', async (req, res) => {
             : '❌ Tu certificado fue rechazado. Por favor sube un documento válido e inténtalo de nuevo.';
 
         try {
-            await createNotification(userId, notifMsg, 'verification');
+            await createNotification({
+                userId,
+                type: 'system',
+                title: action === 'approve' ? '✅ Cuenta verificada' : '❌ Verificación rechazada',
+                body: notifMsg,
+            });
         } catch (notifErr) {
             console.error('[admin] Error enviando notificación interna:', notifErr.message);
         }
