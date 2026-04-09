@@ -4,7 +4,7 @@ const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'control@reyescomputing.com';
-const FROM_EMAIL  = process.env.FROM_EMAIL  || 'Powerbud <onboarding@resend.dev>';
+const FROM_EMAIL  = process.env.FROM_EMAIL  || 'Powerbud <no-reply@reyescomputing.com>';
 const API_BASE    = process.env.API_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'https://powerbud-api.onrender.com';
 
 async function deliverEmail(payload) {
