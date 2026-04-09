@@ -12,7 +12,14 @@ async function deliverEmail(payload) {
         console.warn(`[mailer] RESEND_API_KEY no configurada. Se omitió el correo: ${payload.subject}`);
         return { skipped: true };
     }
-    return resend.emails.send(payload);
+    console.log(`[mailer] Enviando email → to:${payload.to} from:${payload.from} subject:"${payload.subject}"`);
+    const result = await resend.emails.send(payload);
+    if (result.error) {
+        console.error(`[mailer] Resend retornó error → ${JSON.stringify(result.error)}`);
+        throw new Error(result.error.message || 'Error al enviar el correo (Resend)');
+    }
+    console.log(`[mailer] Email enviado OK → id:${result.data?.id}`);
+    return result;
 }
 
 /**
