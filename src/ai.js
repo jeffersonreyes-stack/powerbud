@@ -1,11 +1,11 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
   console.warn('Advertencia: GEMINI_API_KEY no está configurada en las variables de entorno.');
 }
 
-const genAI = new GoogleGenerativeAI(apiKey || 'dummy-key-for-dev');
+const genAI = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-for-dev' });
 
 // ══════════════════════════════════════════════════════════════════════════════
 // CATÁLOGO DE ASISTENTES IA — disponibles para selección del entrenador
@@ -251,10 +251,6 @@ const aiService = {
     }
 
     try {
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-      });
-
       const {
         age, weight_kg, height_cm, goal,
         days_per_week, experience_level, injuries
@@ -357,8 +353,8 @@ Estructura JSON requerida:
   "general_advice": "Consejo específico alineado con la metodología del especialista y el objetivo del atleta."
 }`;
 
-      const genResult = await model.generateContent(generationPrompt);
-      const genText = genResult.response.text();
+      const genResult = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: generationPrompt });
+      const genText = genResult.text;
       const cleanGen = genText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const workoutPlan = JSON.parse(cleanGen);
 
@@ -393,8 +389,8 @@ Si el plan es correcto: devuélvelo tal cual.
 Si necesita correcciones: aplícalas directamente.
 RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
 
-      const reviewResult = await model.generateContent(reviewPrompt);
-      const reviewText = reviewResult.response.text();
+      const reviewResult = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: reviewPrompt });
+      const reviewText = reviewResult.text;
       const cleanReview = reviewText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       return JSON.parse(cleanReview);
 
@@ -406,10 +402,6 @@ RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
 
   async generateDietPlan(clientProfile, workoutContext = {}, nutritionHistory = {}, nutritionistContext = {}) {
     try {
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-      });
-
       const {
         age, sex, weight_kg, height_cm, activity_level,
         goal, experience_level, injuries
@@ -504,8 +496,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin bloques de códi
 }
 `;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const result = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+      const responseText = result.text;
       const cleanJsonStr = responseText
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')
