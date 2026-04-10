@@ -600,7 +600,25 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
       : userId;
 
     const profileRes = await pgDb.query('SELECT * FROM user_profiles WHERE user_id = $1 LIMIT 1', [targetId]);
-    const profile = profileRes.rows[0] || {};
+    const profileRow = profileRes.rows[0] || {};
+
+    // Fallback: leer métricas recientes si no hay perfil
+    const metricsRes = await pgDb.query(
+      `SELECT weight_kg, height_cm, notes FROM body_metrics WHERE user_id = $1 ORDER BY date DESC LIMIT 1`,
+      [targetId]
+    );
+    const metricsRow = metricsRes.rows[0] || {};
+
+    const profile = {
+      age: profileRow.age || 'No especificada',
+      sex: profileRow.sex || 'No especificado',
+      weight_kg: profileRow.weight_kg || metricsRow.weight_kg || 'No especificado',
+      height_cm: profileRow.height_cm || metricsRow.height_cm || 'No especificada',
+      activity_level: profileRow.activity_level || 'Moderado',
+      goal: profileRow.goal || 'Mejorar condición física',
+      experience_level: profileRow.experience_level || 'Principiante',
+      injuries: profileRow.injuries || metricsRow.notes || 'Ninguna',
+    };
 
     // Obtener el plan de mesociclo guardado (objetivo, estructura semanal)
     const workoutPlanRes = await pgDb.query(
