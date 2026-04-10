@@ -120,7 +120,7 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
       });
       onComplete();
     } catch (err) {
-      Alert.alert('Error', 'No se pudo guardar tu perfil. Inténtalo de nuevo.');
+      Alert.alert('Error', err.response?.data?.error || err.message || 'No se pudo guardar tu perfil. Inténtalo de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -147,7 +147,7 @@ export default function OnboardingScreen({ onComplete, initialData = null, onCan
       }
       onComplete();
     } catch (err) {
-      Alert.alert('Error', 'No se pudo guardar tu perfil. Inténtalo de nuevo.');
+      Alert.alert('Error', err.response?.data?.error || err.message || 'No se pudo guardar el perfil profesional.');
     } finally {
       setLoading(false);
     }

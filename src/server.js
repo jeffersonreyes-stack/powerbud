@@ -215,6 +215,7 @@ app.post('/api/v2/user-profile', authenticateToken, async (req, res) => {
   try {
     const { age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries, specialty, availability, rate_info } = req.body;
     const userId = req.user.id;
+    console.log(`[profile save] userId=${userId} goal=${goal} weight=${weight_kg} height=${height_cm} age=${age} sex=${sex}`);
     const sql = `
       INSERT INTO user_profiles (user_id, age, sex, activity_level, weight_kg, height_cm, waist_cm, neck_cm, experience_level, goal, injuries, specialty, availability, rate_info, updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())
@@ -229,7 +230,7 @@ app.post('/api/v2/user-profile', authenticateToken, async (req, res) => {
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Error guardando perfil:', err);
-    res.status(500).json({ error: 'Error al guardar el perfil' });
+    res.status(500).json({ error: err.message || 'Error al guardar el perfil' });
   }
 });
 
