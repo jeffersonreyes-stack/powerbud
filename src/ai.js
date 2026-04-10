@@ -12,10 +12,15 @@ const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 async function generateWithRetry(contents, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      const result = await genAI.models.generateContent({ model: GEMINI_MODEL, contents });
-      return result.text;
+      const result = await genAI.models.generateContent({
+        model: GEMINI_MODEL,
+        contents,
+        config: { thinkingConfig: { thinkingBudget: 0 } },
+      });
+      const text = result.text;
+      if (!text) throw new Error('Gemini devolvió respuesta vacía');
+      return text;
     } catch (err) {
-      const status = err?.status ?? err?.errorDetails?.[0]?.reason;
       if ((err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE')) && i < retries - 1) {
         await new Promise(r => setTimeout(r, 2000 * (i + 1)));
         continue;
