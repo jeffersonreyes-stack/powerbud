@@ -252,7 +252,7 @@ const aiService = {
 
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash-preview-04-17',
       });
 
       const {
@@ -407,7 +407,7 @@ RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
   async generateDietPlan(clientProfile, workoutContext = {}, nutritionHistory = {}, nutritionistContext = {}) {
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash-preview-04-17',
       });
 
       const {
