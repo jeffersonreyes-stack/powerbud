@@ -506,8 +506,15 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin bloques de códi
 
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
-      const cleanJsonStr = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      return JSON.parse(cleanJsonStr);
+      const cleanJsonStr = responseText
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+      const firstBrace = cleanJsonStr.indexOf('{');
+      const lastBrace = cleanJsonStr.lastIndexOf('}');
+      const jsonOnly = firstBrace !== -1 ? cleanJsonStr.slice(firstBrace, lastBrace + 1) : cleanJsonStr;
+      return JSON.parse(jsonOnly);
 
     } catch (error) {
       console.error('Error al generar el plan de dieta con Gemini:', error);

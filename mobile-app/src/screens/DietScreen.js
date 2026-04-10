@@ -140,7 +140,8 @@ export default function DietScreen() {
       setDietPlan(res.data);
       Alert.alert('¡Dieta generada!', 'Tu plan de alimentación personalizado con alimentos colombianos está listo.');
     } catch (e) {
-      Alert.alert('Error', 'No se pudo generar el plan. Asegúrate de tener perfil completado.');
+      const msg = e.response?.data?.error || e.message || 'Error desconocido';
+      Alert.alert('Error generando dieta', msg);
     } finally {
       setGenerating(false);
     }

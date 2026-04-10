@@ -713,7 +713,7 @@ app.post('/api/v2/diet/generate', authenticateToken, async (req, res) => {
     res.json(dietPlan);
   } catch (error) {
     console.error('Error generando dieta:', error);
-    res.status(500).json({ error: 'No se pudo generar el plan de dieta.' });
+    res.status(500).json({ error: error.message || 'No se pudo generar el plan de dieta.' });
   }
 });
 
