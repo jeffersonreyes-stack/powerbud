@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList,
   ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
-import api from '../api';
+import api, { apiAI } from '../api';
 
 // ── Barra de progreso de macro ──────────────────────────────────────────────
 function MacroBar({ label, current, target, color }) {
@@ -136,7 +136,7 @@ export default function DietScreen() {
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await api.post('/v2/diet/generate');
+      const res = await apiAI.post('/v2/diet/generate');
       setDietPlan(res.data);
       Alert.alert('¡Dieta generada!', 'Tu plan de alimentación personalizado con alimentos colombianos está listo.');
     } catch (e) {

@@ -33,22 +33,33 @@ const api = axios.create({
   timeout: 15000,
 });
 
+// Instancia con timeout largo para llamadas de IA (Gemini puede tardar 30-60 seg)
+export const apiAI = axios.create({
+  baseURL: API_URL,
+  timeout: 90000,
+});
+
 console.log(`[PowerBud] API conectada a: ${API_URL}`);
 
 // Interceptor para inyectar automáticamente el Token de Seguridad (JWT) en cada petición
-api.interceptors.request.use(
-  async (config) => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+const addAuthInterceptor = (instance) => {
+  instance.interceptors.request.use(
+    async (config) => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.error('Error recuperando token de seguridad', error);
       }
-    } catch (error) {
-      console.error('Error recuperando token de seguridad', error);
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+};
+
+addAuthInterceptor(api);
+addAuthInterceptor(apiAI);
 
 export default api;

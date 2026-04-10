@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../api';
+import api, { apiAI } from '../api';
 import OnboardingScreen from './OnboardingScreen';
 
 export default function DashboardScreen({ setIsAuthenticated }) {
@@ -92,7 +92,7 @@ export default function DashboardScreen({ setIsAuthenticated }) {
 
     setLoadingAI(true);
     try {
-      const response = await api.post('/v2/ai/generate-workout');
+      const response = await apiAI.post('/v2/ai/generate-workout');
       const plan = response.data.data;
       setAiWorkout(plan);
       Alert.alert('✅ ¡Rutina generada!', 'Tu mesociclo de 6 semanas está listo y guardado.');

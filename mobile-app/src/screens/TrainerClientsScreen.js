@@ -4,7 +4,7 @@ import {
   Alert, ActivityIndicator, Modal, ScrollView, KeyboardAvoidingView, Platform
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import api from '../api';
+import api, { apiAI } from '../api';
 
 export default function TrainerClientsScreen({ navigation }) {
   const [clients, setClients] = useState([]);
@@ -123,6 +123,16 @@ export default function TrainerClientsScreen({ navigation }) {
     setAiModalVisible(true);
   };
 
+  const openDietModal = (client) => {
+    if (client.status !== 'active') {
+      Alert.alert('Cliente pendiente', 'Este cliente aún no ha aceptado tu invitación.');
+      return;
+    }
+    setDietClient(client);
+    setNutriInstructions('');
+    setDietModalVisible(true);
+  };
+
   const togglePayment = async (client) => {
     try {
       const res = await api.post(`/v2/relations/clients/${client.client_id}/payment`);
@@ -139,7 +149,7 @@ export default function TrainerClientsScreen({ navigation }) {
     if (!selectedClient) return;
     setGenerating(true);
     try {
-      const res = await api.post('/v2/ai/generate-workout', {
+      const res = await apiAI.post('/v2/ai/generate-workout', {
         client_id: selectedClient.client_id,
         trainer_instructions: trainerInstructions.trim() || null,
       });
@@ -153,6 +163,26 @@ export default function TrainerClientsScreen({ navigation }) {
       Alert.alert('Error', err.response?.data?.error || 'No se pudo generar la rutina.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const generateAiDiet = async () => {
+    if (!dietClient) return;
+    setGeneratingDiet(true);
+    try {
+      const res = await apiAI.post('/v2/diet/generate', {
+        client_id: dietClient.client_id,
+        nutritionist_instructions: nutriInstructions.trim() || null,
+      });
+      setDietModalVisible(false);
+      Alert.alert(
+        '✅ Dieta Generada',
+        `Plan de alimentación asignado a ${dietClient.email}.\n\nEl cliente recibirá una notificación.`,
+      );
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'No se pudo generar la dieta.');
+    } finally {
+      setGeneratingDiet(false);
     }
   };
 

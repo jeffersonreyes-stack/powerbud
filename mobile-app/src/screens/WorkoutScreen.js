@@ -5,7 +5,7 @@ import {
   Image, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../api';
+import api, { apiAI } from '../api';
 
 // ─── Ejercicios por categoría (con video IDs de YouTube en español) ─────────
 // Canales: Sergio Peinado, Alberto Núñez OfficialBar, Entrena con Sergio
@@ -359,7 +359,7 @@ export default function WorkoutScreen({ route }) {
   const generateAITrainerWorkout = async () => {
     setGeneratingAI(true);
     try {
-      await api.post('/v2/ai/generate-workout', {
+      await apiAI.post('/v2/ai/generate-workout', {
         client_id: targetClientId,
         clientProfile: { goal: 'Mejora General', days_per_week: 3, experience_level: 'Intermedio' },
       });
