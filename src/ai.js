@@ -7,6 +7,24 @@ if (!apiKey) {
 
 const genAI = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-for-dev' });
 
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+
+async function generateWithRetry(contents, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const result = await genAI.models.generateContent({ model: GEMINI_MODEL, contents });
+      return result.text;
+    } catch (err) {
+      const status = err?.status ?? err?.errorDetails?.[0]?.reason;
+      if ((err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE')) && i < retries - 1) {
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // CATÁLOGO DE ASISTENTES IA — disponibles para selección del entrenador
 // Cada entrada: { label (UI), role (contexto del prompt), methodology (énfasis técnico) }
@@ -353,8 +371,7 @@ Estructura JSON requerida:
   "general_advice": "Consejo específico alineado con la metodología del especialista y el objetivo del atleta."
 }`;
 
-      const genResult = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: generationPrompt });
-      const genText = genResult.text;
+      const genText = await generateWithRetry(generationPrompt);
       const cleanGen = genText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const workoutPlan = JSON.parse(cleanGen);
 
@@ -389,8 +406,7 @@ Si el plan es correcto: devuélvelo tal cual.
 Si necesita correcciones: aplícalas directamente.
 RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
 
-      const reviewResult = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: reviewPrompt });
-      const reviewText = reviewResult.text;
+      const reviewText = await generateWithRetry(reviewPrompt);
       const cleanReview = reviewText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       return JSON.parse(cleanReview);
 
@@ -496,8 +512,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin bloques de códi
 }
 `;
 
-      const result = await genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-      const responseText = result.text;
+      const responseText = await generateWithRetry(prompt);
       const cleanJsonStr = responseText
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')
