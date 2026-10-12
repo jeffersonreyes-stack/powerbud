@@ -701,6 +701,144 @@
             .testimonials-grid { grid-template-columns: 1fr; }
             .phone-mockup-wrapper { display: none; }
         }
+    
+        /* Estilos para capturas de pantalla de la app */
+        .card-app-preview {
+            margin: 20px 0;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 234, 255, 0.25);
+            background: #0d111a;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .card-app-preview:hover {
+            transform: translateY(-4px);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 15px 35px rgba(0, 234, 255, 0.2);
+        }
+        .card-app-preview img {
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            object-position: top center;
+            display: block;
+            filter: contrast(105%) brightness(102%);
+        }
+        .preview-caption {
+            padding: 10px 14px;
+            background: rgba(13, 17, 26, 0.95);
+            font-size: 0.8rem;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .preview-caption span {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* Showcase Section */
+        .showcase-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            margin-top: 50px;
+        }
+        .showcase-item {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 24px;
+            transition: all 0.35s ease;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .showcase-item:hover {
+            transform: translateY(-8px);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 15px 40px rgba(0, 234, 255, 0.15);
+        }
+        .showcase-phone-frame {
+            background: #05070c;
+            border-radius: 24px;
+            padding: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8), 0 10px 25px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .showcase-phone-frame img {
+            width: 100%;
+            height: 380px;
+            object-fit: cover;
+            object-position: top center;
+            border-radius: 16px;
+            display: block;
+            transition: transform 0.4s ease;
+        }
+        .showcase-item:hover .showcase-phone-frame img {
+            transform: scale(1.02);
+        }
+        .showcase-tag {
+            display: inline-block;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            width: fit-content;
+        }
+        .tag-workout { background: rgba(0, 234, 255, 0.15); color: var(--neon-cyan); border: 1px solid rgba(0, 234, 255, 0.4); }
+        .tag-nutrition { background: rgba(57, 255, 20, 0.15); color: var(--neon-green); border: 1px solid rgba(57, 255, 20, 0.4); }
+        .tag-recovery { background: rgba(255, 0, 200, 0.15); color: var(--neon-magenta); border: 1px solid rgba(255, 0, 200, 0.4); }
+        .showcase-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .showcase-desc {
+            font-size: 0.88rem;
+            color: #9ca3af;
+            line-height: 1.5;
+        }
+
+        /* Hero phone visual update */
+        .hero-phone-real {
+            width: 100%;
+            height: 480px;
+            object-fit: cover;
+            object-position: top center;
+            border-radius: 20px;
+            display: block;
+        }
+        .hero-badge-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(9, 10, 15, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 8px 16px;
+            border-radius: 30px;
+            border: 1px solid var(--neon-cyan);
+            font-size: 0.8rem;
+            color: #fff;
+            white-space: nowrap;
+            box-shadow: 0 4px 15px rgba(0, 234, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
     </style>
 </head>
 <body>
@@ -715,6 +853,7 @@
         <ul class="nav-links">
             <li><a href="#diferenciador">Diferenciador</a></li>
             <li><a href="#roles-profesionales">Atletas & Profesionales</a></li>
+            <li><a href="#capturas-app">Vistas de la App</a></li>
             <li><a href="#calculadora">Calculadora IA</a></li>
             <li><a href="#testimonios">Testimonios</a></li>
             <li><a href="#faq">FAQ</a></li>
@@ -750,29 +889,10 @@
                 <div class="phone-mockup-wrapper">
                     <div class="phone-mockup">
                         <div class="phone-notch"></div>
-                        <div class="phone-screen">
-                            <div class="app-header-mock">
-                                <span class="app-title-mock"><i class="fas fa-bolt"></i> PowerBud</span>
-                                <span style="color:#00eaff;font-size:0.85rem;"><i class="fas fa-shield-halved"></i> Modo Supervisado</span>
-                            </div>
-                            <div class="magic-btn-mock">
-                                <i class="fas fa-wand-magic-sparkles"></i> ¡GENERAR RUTINA IA!
-                            </div>
-                            <div class="app-card-mock">
-                                <p style="color:#39ff14;font-size:0.8rem;font-weight:700;">LOG SINCRONIZADO CON COACH</p>
-                                <h4 style="color:#fff;margin-top:4px;">Hipertrofia Pierna & Core</h4>
-                                <p style="color:#9ca3af;font-size:0.78rem;margin-top:6px;">• Prensa 45°: 4 series x 12 reps (140 kg)</p>
-                                <p style="color:#9ca3af;font-size:0.78rem;">• Peso Muerto Rumano: 3 x 10 reps (90 kg)</p>
-                                <p style="color:#00eaff;font-size:0.75rem;margin-top:8px;">✓ Coach validó el log a las 18:30</p>
-                            </div>
-                            <div class="app-card-mock" style="border-color:#ff00c8;">
-                                <p style="color:#ff00c8;font-size:0.8rem;font-weight:700;">DIETA POR NUTRIÓLOGO</p>
-                                <h4 style="color:#fff;margin-top:4px;">2,450 kcal / día (Superávit)</h4>
-                                <div style="display:flex;gap:4px;margin-top:6px;font-size:0.75rem;">
-                                    <span style="color:#00eaff;">P: 180g</span>
-                                    <span style="color:#ff00c8;">C: 260g</span>
-                                    <span style="color:#39ff14;">G: 65g</span>
-                                </div>
+                        <div class="phone-screen" style="padding:0;overflow:hidden;position:relative;">
+                            <img src="/img/screens/app_workout_logger.webp" alt="PowerBud App - Registro de Cargas" class="hero-phone-real" />
+                            <div class="hero-badge-overlay">
+                                <i class="fas fa-bolt" style="color:var(--neon-green);"></i> App Nativa en Vivo · Modo Cyberpunk
                             </div>
                         </div>
                     </div>
@@ -864,6 +984,13 @@
                         <p class="lead">
                             Los mejores coaches no pierden sus domingos rellenando hojas de cálculo. PowerBud es tu arma secreta de gestión y retención:
                         </p>
+                        <div class="card-app-preview">
+                            <img src="/img/screens/app_recovery_acwr.webp" alt="Tasa de Recuperación y Ratio ACWR" />
+                            <div class="preview-caption">
+                                <span><i class="fas fa-heart-pulse" style="color:var(--neon-magenta);"></i> Métricas ACWR & Sueño</span>
+                                <small>Fatiga bajo control</small>
+                            </div>
+                        </div>
                         <ul class="role-benefits-list">
                             <li>
                                 <i class="fas fa-wand-magic-sparkles"></i>
@@ -896,6 +1023,13 @@
                         <p class="lead">
                             El mayor enemigo del nutricionista es el paciente que no sigue la dieta. Con PowerBud conectas el plan con su plato real:
                         </p>
+                        <div class="card-app-preview">
+                            <img src="/img/screens/app_diet_plan.webp" alt="Plan Nutricional Semanal con Comida Colombiana" />
+                            <div class="preview-caption">
+                                <span><i class="fas fa-utensils" style="color:var(--neon-green);"></i> Menú Colombiano Semanal</span>
+                                <small>5 comidas calculadas</small>
+                            </div>
+                        </div>
                         <ul class="role-benefits-list">
                             <li>
                                 <i class="fas fa-utensils"></i>
@@ -918,6 +1052,82 @@
                     <a href="#descargar" class="btn-cta" style="width:100%;justify-content:center;background:linear-gradient(135deg, #39ff14, #00eaff);color:#090a0f;">
                         <i class="fas fa-stethoscope"></i> Potenciar mi Consulta
                     </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    
+    <!-- SECCIÓN INTERACTIVA: CAPTURAS REALES DE LA APP -->
+    <section id="capturas-app" style="background: radial-gradient(circle at 50% 30%, rgba(0, 234, 255, 0.05), transparent 70%); padding: 100px 0;">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-subtitle">Vistas Reales de la Aplicación</span>
+                <h2 class="section-title">PowerBud en Acción: Diseñado para Rendimiento</h2>
+                <p class="section-desc">
+                    Cada pantalla fue concebida para entrenar con rapidez en el gimnasio, registrar sin fricción y ofrecer auditoría científica a entrenadores y nutricionistas.
+                </p>
+            </div>
+
+            <div class="showcase-grid">
+                <!-- 1. Logger de Series y Cargas -->
+                <div class="showcase-item">
+                    <span class="showcase-tag tag-workout"><i class="fas fa-dumbbell"></i> Registro Rápido</span>
+                    <div class="showcase-phone-frame">
+                        <img src="/img/screens/app_workout_logger.webp" alt="Registro táctil de series, repeticiones y peso" loading="lazy" />
+                    </div>
+                    <h3 class="showcase-title">Logger Táctil con Cero Fricción</h3>
+                    <p class="showcase-desc">Selecciona series (1-6), repeticiones (5-30) y peso con toques instantáneos. Diseñado para usarse con una sola mano entre descansos de serie.</p>
+                </div>
+
+                <!-- 2. Nutrición y Dieta Colombiana -->
+                <div class="showcase-item">
+                    <span class="showcase-tag tag-nutrition"><i class="fas fa-apple-whole"></i> Nutrición Real</span>
+                    <div class="showcase-phone-frame">
+                        <img src="/img/screens/app_diet_plan.webp" alt="Plan de Dieta IA con alimentos colombianos" loading="lazy" />
+                    </div>
+                    <h3 class="showcase-title">Plan Nutricional 100% Colombiano</h3>
+                    <p class="showcase-desc">Desayuno, media mañana, almuerzo, merienda y cena estructurados con arepa, pollo, tilapia, lentejas y huevos. Macros exactos por tiempo de comida.</p>
+                </div>
+
+                <!-- 3. Tasa de Recuperación & ACWR -->
+                <div class="showcase-item">
+                    <span class="showcase-tag tag-recovery"><i class="fas fa-heart-pulse"></i> Prevención de Lesiones</span>
+                    <div class="showcase-phone-frame">
+                        <img src="/img/screens/app_recovery_acwr.webp" alt="Monitoreo de recuperación y ratio ACWR" loading="lazy" />
+                    </div>
+                    <h3 class="showcase-title">Control de Fatiga & Ratio ACWR</h3>
+                    <p class="showcase-desc">Puntuación de recuperación en vivo calculada a partir de horas de sueño, nivel de estrés y sobrecarga acumulada para evitar el sobreentrenamiento.</p>
+                </div>
+
+                <!-- 4. Récords Máximos y Progreso -->
+                <div class="showcase-item">
+                    <span class="showcase-tag tag-workout"><i class="fas fa-trophy"></i> Sobrecarga Progresiva</span>
+                    <div class="showcase-phone-frame">
+                        <img src="/img/screens/app_1rm_progress.webp" alt="Máximos por ejercicio en banca, sentadilla y peso muerto" loading="lazy" />
+                    </div>
+                    <h3 class="showcase-title">Historial de Máximos por Ejercicio</h3>
+                    <p class="showcase-desc">Visualiza de inmediato tu mejor marca en sentadilla, banca, peso muerto y accesorios. Toca cualquier ejercicio para ver su tabla histórica de volumen.</p>
+                </div>
+
+                <!-- 5. Tabla de Volumen y Progresión -->
+                <div class="showcase-item">
+                    <span class="showcase-tag tag-workout"><i class="fas fa-chart-column"></i> Gráficos de Carga</span>
+                    <div class="showcase-phone-frame">
+                        <img src="/img/screens/app_volume_chart.webp" alt="Gráfica de progresión de peso y tabla de volumen" loading="lazy" />
+                    </div>
+                    <h3 class="showcase-title">Progresión de Peso y Volumen Total</h3>
+                    <p class="showcase-desc">Gráficas de barras comparativas y tabla detallada con fecha, carga, repeticiones y volumen absoluto (kg movidos por sesión).</p>
+                </div>
+
+                <!-- 6. Biblioteca de Ejercicios -->
+                <div class="showcase-item">
+                    <span class="showcase-tag tag-recovery"><i class="fas fa-play"></i> Biomecánica</span>
+                    <div class="showcase-phone-frame">
+                        <img src="/img/screens/app_exercise_library.webp" alt="Biblioteca de ejercicios con videos demostrativos" loading="lazy" />
+                    </div>
+                    <h3 class="showcase-title">Biblioteca con Videos Demostrativos</h3>
+                    <p class="showcase-desc">Buscador y catálogo de ejercicios filtrados por grupo muscular con reproducción de video de técnica correcta para no dudar en ninguna máquina.</p>
                 </div>
             </div>
         </div>
