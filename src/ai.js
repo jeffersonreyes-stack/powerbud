@@ -7,27 +7,34 @@ if (!apiKey) {
 
 const genAI = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-for-dev' });
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 
 async function generateWithRetry(contents, retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const result = await genAI.models.generateContent({
-        model: GEMINI_MODEL,
-        contents,
-        config: { thinkingConfig: { thinkingBudget: 0 } },
-      });
-      const text = result.text;
-      if (!text) throw new Error('Gemini devolvió respuesta vacía');
-      return text;
-    } catch (err) {
-      if ((err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE')) && i < retries - 1) {
-        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
-        continue;
+  let lastErr = null;
+  for (const modelName of GEMINI_MODELS) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const result = await genAI.models.generateContent({
+          model: modelName,
+          contents,
+          config: { thinkingConfig: { thinkingBudget: 0 } },
+        });
+        const text = result.text;
+        if (!text) throw new Error('Gemini devolvió respuesta vacía');
+        return text;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`[AI] Intento ${i + 1} con modelo ${modelName} falló: ${err.message || err}`);
+        if ((err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE')) && i < retries - 1) {
+          await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+          continue;
+        }
+        // Si falló por 404, modelo no encontrado, o error no transitorio, pasar al siguiente modelo
+        break;
       }
-      throw err;
     }
   }
+  throw lastErr || new Error('No se pudo generar respuesta con los modelos disponibles');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -265,6 +272,129 @@ function buildFallbackWorkoutPlan(clientProfile = {}, progressData = {}, trainer
   };
 }
 
+
+function buildFallbackDietPlan(clientProfile = {}, workoutContext = {}, nutritionistContext = {}) {
+  const weight = Number(clientProfile.weight_kg) || 70;
+  const goal = (clientProfile.goal || 'Mejorar condición física').toLowerCase();
+  const nutriSpec = resolveNutriSpecialist(nutritionistContext.ai_specialist, clientProfile.goal);
+
+  let targetCals = 2200;
+  let proteinMultiplier = 2.0;
+
+  if (goal.includes('grasa') || goal.includes('definir') || goal.includes('perder') || goal.includes('peso')) {
+    targetCals = Math.round(weight * 26);
+    proteinMultiplier = 2.2;
+  } else if (goal.includes('muscular') || goal.includes('masa') || goal.includes('volumen') || goal.includes('fuerza')) {
+    targetCals = Math.round(weight * 34);
+    proteinMultiplier = 2.0;
+  } else {
+    targetCals = Math.round(weight * 30);
+    proteinMultiplier = 1.8;
+  }
+
+  // Ajuste por recuperación (ACWR o déficit de sueño)
+  const acwr = workoutContext?.recovery?.acwr;
+  const avgSleep = workoutContext?.recovery?.avg_sleep;
+  if ((acwr !== null && acwr !== undefined && Number(acwr) > 1.3) || (avgSleep && Number(avgSleep) < 7)) {
+    targetCals = Math.round(targetCals * 1.08);
+  }
+
+  const proteinG = Math.round(weight * proteinMultiplier);
+  const fatG = Math.round((targetCals * 0.25) / 9);
+  const carbsG = Math.max(100, Math.round((targetCals - (proteinG * 4) - (fatG * 9)) / 4));
+
+  const daysOfWeek = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+  const weekly_plan = daysOfWeek.map((dayName) => {
+    return {
+      day: dayName,
+      meals: [
+        {
+          time: 'Desayuno (7:00 AM)',
+          foods: [
+            `${goal.includes('muscular') ? '3' : '2'} huevos revueltos con tomate y cebolla (pericos)`,
+            '1-2 arepas de maíz tela medianas',
+            '1 tajada de queso campesino bajo en sal (30g)',
+            '1 taza de café negro o infusión sin azúcar'
+          ],
+          calories: Math.round(targetCals * 0.25),
+          protein_g: Math.round(proteinG * 0.28),
+          carbs_g: Math.round(carbsG * 0.22),
+          fat_g: Math.round(fatG * 0.26)
+        },
+        {
+          time: 'Media Mañana (10:00 AM)',
+          foods: [
+            '1 taza de yogur griego natural o kumis descremado',
+            '1 porción de fruta (banano, papaya o manzana picada)',
+            '1 puñado pequeño de maní tostado sin sal o almendras'
+          ],
+          calories: Math.round(targetCals * 0.15),
+          protein_g: Math.round(proteinG * 0.15),
+          carbs_g: Math.round(carbsG * 0.18),
+          fat_g: Math.round(fatG * 0.18)
+        },
+        {
+          time: 'Almuerzo (1:00 PM)',
+          foods: [
+            `${Math.round(weight * 2.2)}g de pechuga de pollo o carne magra asada`,
+            `${goal.includes('grasa') ? '1 taza' : '1.5 tazas'} de arroz blanco o papa criolla cocida`,
+            '1/2 taza de frijoles rojos o lentejas guisadas',
+            'Abundante ensalada fresca (lechuga, tomate, pepino) con limón',
+            '1/4 de aguacate mediano'
+          ],
+          calories: Math.round(targetCals * 0.35),
+          protein_g: Math.round(proteinG * 0.35),
+          carbs_g: Math.round(carbsG * 0.35),
+          fat_g: Math.round(fatG * 0.32)
+        },
+        {
+          time: 'Merienda / Pre-entreno (4:30 PM)',
+          foods: [
+            '1 arepa mediana o 2 tajadas de pan integral',
+            '1 lata pequeña de atún en agua o 2 huevos cocidos',
+            '1 vaso de agua fría o infusión'
+          ],
+          calories: Math.round(targetCals * 0.12),
+          protein_g: Math.round(proteinG * 0.12),
+          carbs_g: Math.round(carbsG * 0.15),
+          fat_g: Math.round(fatG * 0.12)
+        },
+        {
+          time: 'Cena (7:30 PM)',
+          foods: [
+            `${Math.round(weight * 2.0)}g de filete de pechuga, tilapia o lomo de cerdo magro`,
+            `${goal.includes('grasa') ? '1/2 plátano maduro al vapor o 1 papa mediana' : '1 plátano maduro al horno o porción generosa de yuca'}`,
+            'Verduras salteadas (zanahoria, espinaca, champiñones) con gotas de aceite de oliva'
+          ],
+          calories: Math.round(targetCals * 0.13),
+          protein_g: Math.round(proteinG * 0.10),
+          carbs_g: Math.round(carbsG * 0.10),
+          fat_g: Math.round(fatG * 0.12)
+        }
+      ],
+      day_totals: {
+        calories: targetCals,
+        protein_g: proteinG,
+        carbs_g: carbsG,
+        fat_g: fatG
+      }
+    };
+  });
+
+  return {
+    daily_targets: {
+      calories: targetCals,
+      protein_g: proteinG,
+      carbs_g: carbsG,
+      fat_g: fatG
+    },
+    weekly_plan,
+    shopping_tips: 'Mercar en plazas locales (como Paloquemao, Corabastos o la plaza de tu barrio) ahorra hasta un 40% en pechuga de pollo, huevos por cubeta de 30 unidades, arroz por arroba y verduras frescas. El queso campesino y las legumbres (lentejas y frijoles) son fuentes excelentes y económicas de proteína y micronutrientes.',
+    general_advice: `Plan estructurado bajo metodología ${nutriSpec.label}: Mantén un consumo mínimo de 2.5 a 3 litros de agua al día. Ajusta los carbohidratos en tus días de descanso si tu objetivo es definir. Asegura al menos 7-8 horas de descanso nocturno para optimizar la síntesis proteica.`
+  };
+}
+
 const aiService = {
   // trainerContext = { ai_specialist, trainer_instructions, trainer_name }
   async generateWorkoutPlan(clientProfile, progressData = {}, trainerContext = {}) {
@@ -422,6 +552,10 @@ RESPONDE ÚNICAMENTE CON EL JSON FINAL. Sin texto adicional.`;
   },
 
   async generateDietPlan(clientProfile, workoutContext = {}, nutritionHistory = {}, nutritionistContext = {}) {
+    if (!apiKey) {
+      console.warn('[AI] Usando plan de dieta de respaldo: GEMINI_API_KEY no configurada.');
+      return buildFallbackDietPlan(clientProfile, workoutContext, nutritionistContext);
+    }
     try {
       const {
         age, sex, weight_kg, height_cm, activity_level,
@@ -529,8 +663,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin bloques de códi
       return JSON.parse(jsonOnly);
 
     } catch (error) {
-      console.error('Error al generar el plan de dieta con Gemini:', error);
-      throw new Error('No se pudo generar el plan de dieta. Inténtalo de nuevo más tarde.');
+      console.error('Error al generar el plan de dieta con Gemini. Usando plan de respaldo estructurado:', error);
+      return buildFallbackDietPlan(clientProfile, workoutContext, nutritionistContext);
     }
   }
 };
