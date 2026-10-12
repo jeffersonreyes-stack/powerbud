@@ -147,11 +147,11 @@ const authController = {
         });
       }
 
-      // Generar Token JWT (Válido por 7 días)
+      // Generar Token JWT (Válido por 90 días para evitar expiraciones prematuras en la app móvil)
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
         JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '90d' }
       );
 
       res.json({ message: 'Inicio de sesión exitoso', token, user: { id: user.id, email: user.email, role: user.role, name: user.name || null } });
