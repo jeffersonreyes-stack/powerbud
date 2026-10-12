@@ -41,6 +41,12 @@ export const apiAI = axios.create({
 
 console.log(`[PowerBud] API conectada a: ${API_URL}`);
 
+let onUnauthorizedCallback = null;
+
+export const setOnUnauthorizedCallback = (callback) => {
+  onUnauthorizedCallback = callback;
+};
+
 // Interceptor para inyectar automáticamente el Token de Seguridad (JWT) en cada petición
 const addAuthInterceptor = (instance) => {
   instance.interceptors.request.use(
@@ -56,6 +62,28 @@ const addAuthInterceptor = (instance) => {
       return config;
     },
     (error) => Promise.reject(error)
+  );
+
+  instance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const status = error.response?.status;
+      const errorMsg = error.response?.data?.error;
+      const isTokenError = status === 401 || (status === 403 && typeof errorMsg === 'string' && (errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('expirado')));
+
+      if (isTokenError) {
+        console.warn('[PowerBud] Token expirado o inválido detectado. Limpiando sesión...');
+        try {
+          await AsyncStorage.multiRemove(['userToken', 'userInfo']);
+        } catch (e) {
+          console.error('Error eliminando sesión local', e);
+        }
+        if (onUnauthorizedCallback) {
+          onUnauthorizedCallback();
+        }
+      }
+      return Promise.reject(error);
+    }
   );
 };
 

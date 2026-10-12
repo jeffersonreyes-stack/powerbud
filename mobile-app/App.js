@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import api from './src/api';
+import api, { setOnUnauthorizedCallback } from './src/api';
 
 // Pantallas
 import LoginScreen from './src/screens/LoginScreen';
@@ -146,12 +146,32 @@ export default function App() {
       } else {
         setNeedsOnboarding(false);
       }
-    } catch {
-      setNeedsOnboarding(true);
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        console.warn('[PowerBud] Sesión expirada al verificar perfil. Redirigiendo a Login...');
+        await AsyncStorage.multiRemove(['userToken', 'userInfo']);
+        setIsAuthenticated(false);
+        setNeedsOnboarding(false);
+        return;
+      }
+      // Si el error es por falta de perfil (404) o configuración inicial
+      if (status === 404) {
+        setNeedsOnboarding(true);
+        return;
+      }
+      // Error de red u otros: no forzar onboarding para no atrapar al usuario
+      setNeedsOnboarding(false);
     }
   };
 
   useEffect(() => {
+    setOnUnauthorizedCallback(async () => {
+      console.warn('[PowerBud] Callback no autorizado disparado: limpiando estado de navegación');
+      setIsAuthenticated(false);
+      setNeedsOnboarding(false);
+    });
+
     const checkToken = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
